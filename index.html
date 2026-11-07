@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pīwakawaka's Aotearoa Journey</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #87CEEB;
+            overflow: hidden;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-15px); } 100% { transform: translateY(0px); } }
+        .animate-bounce-fast { animation: bounce 0.8s infinite; }
+        
+        .game-btn { box-shadow: 0 6px 0px rgba(0,0,0,0.2); transition: all 0.1s; }
+        .game-btn:active:not(:disabled) { transform: translateY(6px); box-shadow: 0 0px 0px rgba(0,0,0,0.2); }
+        .level-locked { filter: grayscale(100%) opacity(0.5); pointer-events: none; }
+        
+        .error-shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-2px, 0, 0); } 20%, 80% { transform: translate3d(4px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-8px, 0, 0); } 40%, 60% { transform: translate3d(8px, 0, 0); } }
+        
+        .screen-container { transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.6s ease-in-out; }
+        .slide-in-right { transform: translateX(0%); opacity: 1; pointer-events: auto; }
+        .slide-out-left { transform: translateX(-100%); opacity: 0; pointer-events: none; }
+        .slide-out-right { transform: translateX(100%); opacity: 0; pointer-events: none; }
+
+        .particle { position: absolute; pointer-events: none; animation: pop 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards; }
+        @keyframes pop { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; } 100% { transform: translate(var(--tx), var(--ty)) scale(1.5) rotate(var(--rot)); opacity: 0; } }
+        
+        .star-filled { filter: grayscale(0%) opacity(1); transform: scale(1.1); transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .star-empty { filter: grayscale(100%) opacity(0.3); transform: scale(0.9); transition: all 0.3s; }
+        
+        #map-nodes::-webkit-scrollbar { width: 10px; }
+        #map-nodes::-webkit-scrollbar-track { background: rgba(255,255,255,0.3); border-radius: 10px; margin-block: 10px; }
+        #map-nodes::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.9); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+
+        .tts-active { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.4); border-color: #3B82F6 !important; transform: scale(1.02); transition: all 0.3s ease-in-out; }
+
+        .parallax-item { position: absolute; opacity: 0.4; animation: floatUp linear infinite; }
+        @keyframes floatUp { 0% { transform: translateY(100vh) rotate(0deg); opacity: 0; } 10% { opacity: 0.6; } 90% { opacity: 0.6; } 100% { transform: translateY(-20vh) rotate(360deg); opacity: 0; } }
+    </style>
+</head>
+<body class="w-screen h-screen relative flex items-center justify-center bg-blue-100 overflow-hidden">
+
+    <!-- Existing SVG Templates -->
+    <template id="svg-kekeno"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><path d="M10,85 C30,95 70,95 80,70 C90,40 75,20 60,25 C50,28 45,45 35,55 C20,70 10,70 10,85 Z" fill="#4a4441"/><path d="M40,70 C50,85 70,80 60,65 Z" fill="#302c2a"/><circle cx="65" cy="35" r="3" fill="#000"/><circle cx="80" cy="32" r="4" fill="#1a1a1a"/><path d="M82,35 L95,40 M82,38 L93,45" stroke="#000" stroke-width="1.5" stroke-linecap="round"/></svg></template>
+    <template id="svg-kiwi"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><path d="M40,75 L40,90 M35,90 L45,90 M60,75 L60,90 M55,90 L65,90" stroke="#d97736" stroke-width="4" stroke-linecap="round"/><ellipse cx="50" cy="55" rx="35" ry="25" fill="#5c4033"/><circle cx="25" cy="45" r="15" fill="#5c4033"/><path d="M12,50 Q5,65 2,80" stroke="#e8c39e" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="20" cy="42" r="2.5" fill="#000"/></svg></template>
+    <template id="svg-huntaway"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><path d="M30,90 L30,50 C30,30 50,30 60,35 C75,40 85,50 85,70 L85,90 Z" fill="#111111"/><path d="M60,65 C75,65 85,75 85,90 L60,90 Z" fill="#c47029"/><circle cx="55" cy="40" r="4" fill="#c47029"/><path d="M75,55 C85,55 85,65 85,70 C75,70 70,65 75,55 Z" fill="#c47029"/><path d="M35,35 C25,45 25,60 35,55 Z" fill="#111111"/><circle cx="85" cy="55" r="3" fill="#000"/><circle cx="65" cy="45" r="2.5" fill="#fff"/><circle cx="66" cy="45" r="1.5" fill="#000"/></svg></template>
+    <template id="svg-kea"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><path d="M40,80 L40,90 M55,80 L55,90" stroke="#333" stroke-width="4" stroke-linecap="round"/><path d="M20,60 L5,85 L25,75 Z" fill="#4d5e3c"/><ellipse cx="45" cy="55" rx="25" ry="30" fill="#5e6b45"/><path d="M35,45 C50,45 65,70 45,80 Z" fill="#5e6b45"/><path d="M40,55 C55,55 60,70 45,75 Z" fill="#d95e16"/><circle cx="60" cy="35" r="18" fill="#5e6b45"/><path d="M75,30 C90,30 90,50 80,55 C85,45 80,40 75,40 Z" fill="#4a4a4a"/><circle cx="65" cy="32" r="2.5" fill="#000"/><circle cx="55" cy="40" r="4" fill="#d95e16" opacity="0.6"/></svg></template>
+    <template id="svg-whio"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><ellipse cx="50" cy="60" rx="35" ry="25" fill="#5A6B7C"/><circle cx="75" cy="40" r="15" fill="#5A6B7C"/><path d="M70,55 Q80,80 40,85 Z" fill="#8B4513"/><path d="M85,35 Q98,40 88,45 Z" fill="#E6DCC8"/><circle cx="78" cy="35" r="2.5" fill="#000"/></svg></template>
+    <template id="svg-tui"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><path d="M30,80 Q50,90 65,70 Q75,40 60,30 Q40,30 30,50 Z" fill="#1A2B3C"/><circle cx="55" cy="60" r="6" fill="#FFF" filter="drop-shadow(0 2px 2px rgba(0,0,0,0.3))"/><circle cx="65" cy="35" r="2" fill="#000"/><path d="M68,32 Q85,35 68,40 Z" fill="#111"/></svg></template>
+    <template id="svg-ruru"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><ellipse cx="50" cy="65" rx="30" ry="25" fill="#5C4033"/><circle cx="50" cy="35" r="22" fill="#4A3020"/><circle cx="40" cy="35" r="8" fill="#F4C430"/><circle cx="60" cy="35" r="8" fill="#F4C430"/><circle cx="40" cy="35" r="3" fill="#000"/><circle cx="60" cy="35" r="3" fill="#000"/><path d="M45,45 L55,45 L50,55 Z" fill="#111"/></svg></template>
+    <template id="svg-takahe"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><ellipse cx="45" cy="60" rx="35" ry="30" fill="#204070"/><ellipse cx="70" cy="40" rx="15" ry="18" fill="#204070"/><path d="M80,30 Q95,45 80,55 Z" fill="#C03030"/><circle cx="75" cy="35" r="2.5" fill="#000"/><path d="M35,80 L35,95 M55,80 L55,95" stroke="#C03030" stroke-width="4"/></svg></template>
+    <template id="svg-kakapo"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><ellipse cx="50" cy="55" rx="35" ry="40" fill="#557B3E"/><circle cx="50" cy="35" r="20" fill="#759A4E"/><path d="M45,40 L55,40 L50,50 Z" fill="#B0A080"/><circle cx="42" cy="32" r="2" fill="#000"/><circle cx="58" cy="32" r="2" fill="#000"/><path d="M15,55 Q5,70 15,85" stroke="#446130" stroke-width="3" fill="none"/></svg></template>
+    <template id="svg-weka"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><ellipse cx="45" cy="65" rx="35" ry="25" fill="#8B5A2B"/><circle cx="75" cy="45" r="15" fill="#8B5A2B"/><path d="M85,40 L98,45 L85,50 Z" fill="#A08060"/><circle cx="78" cy="42" r="2" fill="#000"/><path d="M35,85 L35,95 M55,85 L55,95" stroke="#A08060" stroke-width="3"/></svg></template>
+    <template id="svg-tuatara"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><ellipse cx="50" cy="70" rx="40" ry="20" fill="#4B5320"/><circle cx="80" cy="50" r="15" fill="#4B5320"/><path d="M85,45 Q95,50 85,55 Z" fill="#A3A847"/><circle cx="82" cy="47" r="2" fill="#000"/><path d="M20,50 L25,40 L30,50 L40,40 L45,50 L55,40 L60,50 L70,40 L75,50" stroke="#7A8B35" stroke-width="4" fill="none" stroke-linejoin="round"/><path d="M30,85 L30,95 M50,85 L50,95 M70,85 L70,95" stroke="#4B5320" stroke-width="4"/></svg></template>
+    <template id="svg-kereru"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><ellipse cx="45" cy="65" rx="30" ry="25" fill="#FFFFFF"/><path d="M15,65 Q30,20 65,30 Q75,50 45,65 Z" fill="#2E4053"/><circle cx="70" cy="35" r="12" fill="#2E4053"/><path d="M78,30 Q90,35 80,40 Z" fill="#C0392B"/><circle cx="72" cy="32" r="2" fill="#000"/><path d="M35,85 L35,95 M55,85 L55,95" stroke="#C0392B" stroke-width="3"/></svg></template>
+    <template id="svg-pukeko"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><ellipse cx="40" cy="60" rx="30" ry="20" fill="#1A237E"/><path d="M60,40 C60,20 70,30 75,40 C80,50 65,60 60,40 Z" fill="#1A237E"/><path d="M70,30 C75,20 85,25 90,35 L75,40 Z" fill="#D32F2F"/><circle cx="75" cy="32" r="2" fill="#000"/><path d="M30,75 L30,95 L35,95 M50,75 L50,95 L55,95" stroke="#D32F2F" stroke-width="3" fill="none"/></svg></template>
+    <template id="svg-kahu"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><path d="M50,75 Q20,80 10,50 Q40,40 50,60 Q60,40 90,50 Q80,80 50,75 Z" fill="#5C4033"/><circle cx="50" cy="40" r="18" fill="#4A3020"/><path d="M45,45 L55,45 L50,55 Z" fill="#D4AF37"/><circle cx="43" cy="38" r="3" fill="#000"/><circle cx="57" cy="38" r="3" fill="#000"/><path d="M40,30 Q50,20 60,30" stroke="#333" stroke-width="2" fill="none"/></svg></template>
+    <template id="svg-weta"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><ellipse cx="50" cy="55" rx="20" ry="35" fill="#3E2723"/><ellipse cx="50" cy="25" rx="15" ry="12" fill="#4E342E"/><path d="M40,20 Q20,10 10,25 M60,20 Q80,10 90,25" stroke="#5D4037" stroke-width="3" fill="none"/><path d="M35,45 Q15,40 10,60 M65,45 Q85,40 90,60 M35,60 Q15,70 15,90 M65,60 Q85,70 85,90 M40,75 Q25,85 25,95 M60,75 Q75,85 75,95" stroke="#3E2723" stroke-width="4" fill="none"/><circle cx="45" cy="23" r="2" fill="#000"/><circle cx="55" cy="23" r="2" fill="#000"/></svg></template>
+    <template id="svg-toroa"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><ellipse cx="50" cy="65" rx="30" ry="20" fill="#FFFFFF"/><path d="M15,65 Q30,40 50,60 Q70,40 85,65" stroke="#212121" stroke-width="8" fill="none" stroke-linecap="round"/><circle cx="75" cy="40" r="14" fill="#FFFFFF"/><path d="M85,35 Q100,40 88,48 Z" fill="#F4A460"/><circle cx="78" cy="38" r="2" fill="#000"/><path d="M40,85 L40,95 M60,85 L60,95" stroke="#B0BEC5" stroke-width="3"/></svg></template>
+    <template id="svg-korora"><svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl"><ellipse cx="50" cy="60" rx="25" ry="35" fill="#1565C0"/><ellipse cx="50" cy="65" rx="18" ry="25" fill="#FFFFFF"/><circle cx="50" cy="30" r="16" fill="#1565C0"/><ellipse cx="50" cy="32" rx="12" ry="10" fill="#FFFFFF"/><path d="M45,35 L55,35 L50,42 Z" fill="#424242"/><circle cx="45" cy="30" r="2" fill="#000"/><circle cx="55" cy="30" r="2" fill="#000"/><path d="M25,50 Q15,70 25,80 M75,50 Q85,70 75,80" stroke="#1565C0" stroke-width="8" fill="none" stroke-linecap="round"/><path d="M40,95 L45,95 L40,100 M60,95 L55,95 L60,100" stroke="#FF8A65" stroke-width="4" fill="none"/></svg></template>
+    <template id="svg-hoiho">
+        <svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl">
+            <ellipse cx="50" cy="60" rx="28" ry="35" fill="#424242"/>
+            <ellipse cx="50" cy="65" rx="20" ry="28" fill="#FFFFFF"/>
+            <circle cx="50" cy="28" r="18" fill="#424242"/>
+            <path d="M35,28 Q50,15 65,28" stroke="#FDD835" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M45,32 L55,32 L50,40 Z" fill="#FFCC80"/>
+            <circle cx="43" cy="28" r="2" fill="#000"/><circle cx="57" cy="28" r="2" fill="#000"/>
+            <path d="M22,50 Q12,70 22,85 M78,50 Q88,70 78,85" stroke="#424242" stroke-width="8" fill="none" stroke-linecap="round"/>
+            <path d="M40,95 L45,95 L40,100 M60,95 L55,95 L60,100" stroke="#FFCC80" stroke-width="4" fill="none"/>
+        </svg>
+    </template>
+    <template id="svg-kotuku">
+        <svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl">
+            <ellipse cx="45" cy="65" rx="25" ry="18" fill="#FFFFFF"/>
+            <path d="M25,65 Q10,60 30,50 Q50,20 65,30 Q70,40 55,55" fill="#FFFFFF"/>
+            <circle cx="65" cy="30" r="10" fill="#FFFFFF"/>
+            <path d="M72,28 L95,30 L72,32 Z" fill="#FDD835"/>
+            <circle cx="68" cy="28" r="1.5" fill="#000"/>
+            <path d="M40,80 L40,95 M50,80 L50,95" stroke="#424242" stroke-width="2"/>
+            <path d="M35,95 L45,95 M45,95 L55,95" stroke="#424242" stroke-width="2"/>
+        </svg>
+    </template>
+    <template id="svg-mohua">
+        <svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl">
+            <ellipse cx="50" cy="65" rx="30" ry="25" fill="#FFF59D"/>
+            <circle cx="65" cy="40" r="15" fill="#FFF59D"/>
+            <path d="M25,60 Q10,75 35,85" fill="#8D6E63"/>
+            <path d="M78,38 L90,40 L78,44 Z" fill="#4E342E"/>
+            <circle cx="68" cy="36" r="2" fill="#000"/>
+            <ellipse cx="45" cy="60" rx="20" ry="15" fill="#A1887F"/>
+            <path d="M40,88 L40,95 M60,88 L60,95" stroke="#4E342E" stroke-width="3"/>
+        </svg>
+    </template>
+    <template id="svg-kokako">
+        <svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl">
+            <ellipse cx="45" cy="65" rx="30" ry="25" fill="#78909C"/>
+            <circle cx="70" cy="40" r="14" fill="#78909C"/>
+            <path d="M60,35 Q70,30 78,35 Q80,45 65,48 Z" fill="#263238"/>
+            <circle cx="72" cy="38" r="2" fill="#000"/>
+            <path d="M80,38 L95,42 L80,44 Z" fill="#263238"/>
+            <circle cx="65" cy="45" r="5" fill="#4FC3F7"/>
+            <path d="M20,65 Q5,85 30,85 Z" fill="#546E7A"/>
+            <path d="M40,88 L40,95 M55,88 L55,95" stroke="#37474F" stroke-width="3"/>
+        </svg>
+    </template>
+    <template id="svg-titipounamu">
+        <svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl">
+            <ellipse cx="50" cy="65" rx="20" ry="15" fill="#81C784"/>
+            <circle cx="65" cy="55" r="10" fill="#A5D6A7"/>
+            <path d="M72,52 L85,55 L72,58 Z" fill="#388E3C"/>
+            <circle cx="68" cy="52" r="1.5" fill="#000"/>
+            <path d="M40,75 L35,85 M55,75 L60,85" stroke="#4E342E" stroke-width="2"/>
+        </svg>
+    </template>
+    <template id="svg-kaka">
+        <svg viewBox="0 0 100 100" class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-xl">
+            <ellipse cx="45" cy="60" rx="30" ry="25" fill="#8D6E63"/>
+            <circle cx="65" cy="35" r="16" fill="#A1887F"/>
+            <path d="M55,30 Q65,20 75,30 Q80,45 65,45 Z" fill="#D84315"/>
+            <path d="M75,30 Q90,30 85,45 Q75,40 70,35 Z" fill="#3E2723"/>
+            <circle cx="68" cy="32" r="2" fill="#000"/>
+            <path d="M20,60 Q5,80 25,85 Z" fill="#D84315"/>
+            <path d="M40,85 L40,95 M55,85 L55,95" stroke="#3E2723" stroke-width="3"/>
+        </svg>
+    </template>
+
+    <!-- Top Controls -->
+    <div class="absolute top-4 right-4 z-[60] flex gap-4">
+        <button id="btn-music" class="game-btn bg-purple-500 hover:bg-purple-400 text-white rounded-full w-14 h-14 flex items-center justify-center text-2xl border-4 border-white">🎵</button>
+        <button id="btn-speech" class="game-btn bg-blue-500 hover:bg-blue-400 text-white rounded-full w-14 h-14 flex items-center justify-center text-2xl border-4 border-white shadow-lg">🔊</button>
+    </div>
+
+    <!-- MAIN HUB SCREEN -->
+    <div id="screen-hub" class="screen-container slide-in-right absolute inset-0 flex flex-col items-center justify-center z-20 bg-gradient-to-b from-sky-300 to-green-300">
+        <div class="absolute top-10 left-10 text-6xl opacity-80 animate-float" style="animation-delay: 0s;">☁️</div>
+        <div class="absolute top-20 right-20 text-7xl opacity-80 animate-float" style="animation-delay: 1.5s;">☁️</div>
+
+        <div class="bg-white/90 p-6 rounded-3xl shadow-xl border-4 border-white mb-6 text-center max-w-lg mx-4 z-10 mt-16 sm:mt-0">
+            <h1 class="text-3xl sm:text-4xl font-black text-amber-600 mb-2">Pīwakawaka's Journey</h1>
+            <p class="text-gray-600 text-lg sm:text-xl font-bold" id="hub-instruction">Kia ora! I'm Pīwakawaka! Choose a place to visit on the map.</p>
+        </div>
+
+        <div id="map-nodes" class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 relative z-10 w-full max-w-2xl px-4 overflow-y-auto max-h-full pb-20 sm:pb-0">
+            <!-- Buttons injected here -->
+        </div>
+
+        <div class="absolute bottom-4 left-4 animate-float pointer-events-none">
+            <svg viewBox="0 0 100 100" class="w-24 h-24 sm:w-32 sm:h-32 drop-shadow-xl">
+                <path d="M10,20 L30,50 L10,80 L5,50 Z" fill="#2c241f"/>
+                <path d="M15,25 L30,50 L15,75" stroke="#fff" stroke-width="2" fill="none"/>
+                <ellipse cx="50" cy="50" rx="25" ry="20" fill="#6b594d"/>
+                <circle cx="70" cy="40" r="15" fill="#4a3b32"/>
+                <circle cx="75" cy="37" r="2.5" fill="#000"/>
+                <path d="M72,33 C75,31 78,33 78,33" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>
+                <path d="M83,38 L95,42 L83,44 Z" fill="#000"/>
+                <path d="M45,70 L40,85 M55,70 L50,85" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        </div>
+    </div>
+
+    <!-- LEVEL PLAY SCREEN -->
+    <div id="screen-level" class="screen-container slide-out-right absolute inset-0 flex flex-col z-10">
+        <div id="level-bg-elements" class="absolute inset-0 overflow-hidden pointer-events-none z-0"></div>
+
+        <div class="absolute top-4 left-4 z-50 flex items-center gap-2 sm:gap-4">
+            <button id="btn-back" class="game-btn bg-red-500 hover:bg-red-400 text-white rounded-full px-4 sm:px-6 py-2 sm:py-3 font-black text-lg sm:text-xl border-4 border-white">⬅️ Map</button>
+            <div id="level-progress" class="bg-white/90 rounded-full px-3 sm:px-4 py-2 flex items-center gap-0.5 sm:gap-1 shadow-md border-2 border-white min-h-[44px]">
+                <!-- Stars injected here -->
+            </div>
+        </div>
+
+        <div class="relative flex-grow flex flex-col items-center justify-between p-4 sm:p-8 overflow-hidden z-10" id="level-playarea">
+            <div class="flex-grow flex flex-col items-center justify-center w-full mt-16 sm:mt-0 relative">
+                <div id="level-character" class="mb-4"></div>
+                
+                <div id="instruction-box" class="bg-white/90 p-4 rounded-3xl shadow-lg border-4 border-white text-center max-w-xl w-full mb-6 transition-all duration-300">
+                    <p id="level-instruction" class="text-xl sm:text-2xl font-bold text-gray-800"></p>
+                </div>
+
+                <div id="level-visual" class="bg-white/90 p-6 rounded-3xl shadow-lg border-4 border-white text-3xl sm:text-5xl font-black text-gray-800 text-center tracking-widest min-h-[120px] flex items-center justify-center w-full max-w-lg mb-8 transition-transform duration-200">
+                    <!-- Injected via JS -->
+                </div>
+            </div>
+
+            <div id="level-options" class="flex flex-wrap justify-center gap-4 w-full pb-8">
+                <!-- Buttons injected via JS -->
+            </div>
+        </div>
+        
+        <div id="loading-overlay" class="absolute inset-0 bg-white/60 backdrop-blur-md z-[55] hidden flex-col items-center justify-center transition-opacity duration-300 opacity-0 pointer-events-none">
+            <div class="text-6xl animate-spin mb-4">✨</div>
+            <h3 class="text-3xl font-black text-blue-600 bg-white/80 px-6 py-2 rounded-full shadow-lg">Loading next puzzle...</h3>
+        </div>
+    </div>
+
+    <!-- SUCCESS MODAL -->
+    <div id="modal-success" class="absolute inset-0 bg-black/60 flex items-center justify-center z-[70] hidden backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl border-8 border-green-400 text-center max-w-sm mx-4 transform transition-transform scale-90" id="success-box">
+            <div class="text-7xl mb-4 animate-bounce">🌟</div>
+            <h2 class="text-3xl font-black text-green-500 mb-4" id="success-title">Ka pai!</h2>
+            <p class="text-xl font-bold text-gray-700 mb-8" id="success-msg">You did it!</p>
+            <button id="btn-next" class="game-btn bg-green-500 hover:bg-green-400 text-white font-black text-2xl py-4 px-8 rounded-full border-4 border-white w-full">Next Place!</button>
+        </div>
+    </div>
+
+    <!-- FINALE MODAL -->
+    <div id="modal-finale" class="absolute inset-0 bg-black/60 flex items-center justify-center z-[70] hidden backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl border-8 border-yellow-400 text-center max-w-md mx-4 transform transition-transform scale-90" id="finale-box">
+            <div class="text-8xl mb-4 animate-bounce">🎊🏆🎊</div>
+            <h2 class="text-4xl font-black text-amber-500 mb-4">Tino Pai Rawa Atu!</h2>
+            <p class="text-xl font-bold text-gray-700 mb-8">You completed the great Aotearoa journey! You are a superstar learner!</p>
+            <button id="btn-restart" class="game-btn bg-amber-500 hover:bg-amber-400 text-white font-black text-2xl py-4 px-8 rounded-full border-4 border-white w-full">Play Again!</button>
+        </div>
+    </div>
+
+    <!-- LOGIC & DATA -->
+    <script>
+        const GameState = {
+            unlockedLevel: 1,
+            currentLevelObj: null,
+            currentScreen: 'hub',
+            currentQuestionIndex: 0
+        };
+
+        const SoundManager = {
+            isMusicPlaying: false,
+            initialized: false,
+            bgMusic: null,
+            bgLoop: null,
+            uiSynth: null,
+            fxSynth: null,
+            errorSynth: null,
+
+            init() {
+                if(this.initialized) return;
+                
+                this.uiSynth = new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 }}).toDestination();
+                this.uiSynth.volume.value = -15;
+
+                this.fxSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "triangle" }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.2, release: 1 }}).toDestination();
+                this.fxSynth.volume.value = -10;
+
+                this.errorSynth = new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 2, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.2 }}).toDestination();
+                this.errorSynth.volume.value = -10;
+
+                this.bgMusic = new Tone.Synth({ oscillator: { type: "triangle" }, envelope: { attack: 0.02, decay: 0.1, sustain: 0.1, release: 0.5 }}).toDestination();
+                this.bgMusic.volume.value = -20;
+                
+                const melodies = [
+                    [{"time": "0:0:0", "note": "C4", "dur": "8n"}, {"time": "0:0:2", "note": "E4", "dur": "8n"}, {"time": "0:1:0", "note": "G4", "dur": "4n"}, {"time": "0:2:0", "note": "A4", "dur": "8n"}, {"time": "0:2:2", "note": "G4", "dur": "8n"}, {"time": "0:3:0", "note": "E4", "dur": "4n"}, {"time": "1:0:0", "note": "D4", "dur": "8n"}, {"time": "1:0:2", "note": "F4", "dur": "8n"}, {"time": "1:1:0", "note": "E4", "dur": "8n"}, {"time": "1:1:2", "note": "D4", "dur": "8n"}, {"time": "1:2:0", "note": "C4", "dur": "2n"}],
+                    [{"time": "0:0:0", "note": "C4", "dur": "4n"}, {"time": "0:1:0", "note": "E4", "dur": "4n"}, {"time": "0:2:0", "note": "G4", "dur": "2n"}, {"time": "1:0:0", "note": "A4", "dur": "4n"}, {"time": "1:1:0", "note": "F4", "dur": "4n"}, {"time": "1:2:0", "note": "C4", "dur": "2n"}],
+                    [{"time": "0:0:0", "note": "D4", "dur": "8n"}, {"time": "0:0:2", "note": "F4", "dur": "8n"}, {"time": "0:1:0", "note": "A4", "dur": "4n"}, {"time": "0:2:0", "note": "G4", "dur": "4n"}, {"time": "0:3:0", "note": "F4", "dur": "4n"}, {"time": "1:0:0", "note": "E4", "dur": "4n"}, {"time": "1:1:0", "note": "C4", "dur": "2n"}],
+                    [{"time": "0:0:0", "note": "C5", "dur": "8n"}, {"time": "0:0:2", "note": "G4", "dur": "8n"}, {"time": "0:1:0", "note": "E4", "dur": "8n"}, {"time": "0:1:2", "note": "C4", "dur": "8n"}, {"time": "0:2:0", "note": "D4", "dur": "4n"}, {"time": "0:3:0", "note": "G4", "dur": "4n"}, {"time": "1:0:0", "note": "C5", "dur": "2n"}]
+                ];
+
+                this.bgParts = melodies.map(mel => {
+                    const part = new Tone.Part((time, value) => {
+                        this.bgMusic.triggerAttackRelease(value.note, value.dur, time);
+                    }, mel);
+                    part.loop = true;
+                    part.loopEnd = "2m";
+                    return part;
+                });
+
+                const bpms = [130, 90, 110, 140];
+                Tone.Transport.bpm.value = bpms[0];
+                Tone.Transport.loop = true;
+                Tone.Transport.loopEnd = "32m";
+
+                this.bgParts[0].start("0m").stop("8m");
+                this.bgParts[1].start("8m").stop("16m");
+                this.bgParts[2].start("16m").stop("24m");
+                this.bgParts[3].start("24m").stop("32m");
+
+                Tone.Transport.schedule((time) => Tone.Transport.bpm.setValueAtTime(bpms[0], time), "0m");
+                Tone.Transport.schedule((time) => Tone.Transport.bpm.setValueAtTime(bpms[1], time), "8m");
+                Tone.Transport.schedule((time) => Tone.Transport.bpm.setValueAtTime(bpms[2], time), "16m");
+                Tone.Transport.schedule((time) => Tone.Transport.bpm.setValueAtTime(bpms[3], time), "24m");
+
+                this.initialized = true;
+            },
+            playClick() { if(!this.initialized || !this.isMusicPlaying) return; this.uiSynth.triggerAttackRelease("C6", "32n"); },
+            playSuccess() {
+                if(!this.initialized || !this.isMusicPlaying) return;
+                const now = Tone.now();
+                this.fxSynth.triggerAttackRelease(["C4", "E4"], "8n", now);
+                this.fxSynth.triggerAttackRelease(["G4", "C5"], "8n", now + 0.15);
+            },
+            playError() { if(!this.initialized || !this.isMusicPlaying) return; this.errorSynth.triggerAttackRelease("C2", "8n"); },
+            async toggleMusic() {
+                if(!this.initialized) { await Tone.start(); this.init(); }
+                const btn = document.getElementById('btn-music');
+                if (this.isMusicPlaying) {
+                    Tone.Transport.pause();
+                    btn.innerText = "🎵"; btn.classList.remove('bg-purple-600'); this.isMusicPlaying = false;
+                } else {
+                    Tone.Transport.start();
+                    btn.innerText = "🔊🎵"; btn.classList.add('bg-purple-600'); this.isMusicPlaying = true;
+                }
+            }
+        };
+
+        let femaleVoice = null;
+        function loadVoices() {
+            const voices = window.speechSynthesis.getVoices();
+            femaleVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Google UK English Female')));
+            if (!femaleVoice) femaleVoice = voices.find(v => v.lang.startsWith('en'));
+        }
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        loadVoices();
+
+        const levelsData = [
+            // Original Levels (1-23)
+            { id: 1, title: "1. The Seaside", icon: "🏖️", subject: "Math", bgGradient: "bg-gradient-to-b from-sky-300 via-blue-200 to-yellow-200", characterId: "svg-kekeno", questions: [{ instruction: "Addition: Kekeno has 3 spiral shells and 2 snail shells. How many shells in total?", visualHTML: `<div class="flex gap-2 text-5xl"><span>🐚 🐚 🐚</span> <span class="text-red-500">+</span> <span>🐌 🐌</span></div>`, options: ["4", "5", "6"], correctAnswer: "5", successMsg: "Ka pai! 3 plus 2 equals 5." }, { instruction: "Subtraction: Kekeno had 5 shells but dropped 2 in the ocean. How many are left?", visualHTML: `<div class="flex gap-2 text-5xl"><span>🐚 🐚 🐚 🐚 🐚</span> <span class="text-red-500">-</span> <span>🐚 🐚</span></div>`, options: ["2", "3", "4"], correctAnswer: "3", successMsg: "Great! 5 minus 2 equals 3." }, { instruction: "Multiplication: Kekeno sees 2 groups of 3 fish. How many fish in total?", visualHTML: `<div class="flex gap-2 flex-col items-center text-5xl"><div>🐟 🐟 🐟</div><div>🐟 🐟 🐟</div></div>`, options: ["5", "6", "7"], correctAnswer: "6", successMsg: "Awesome! 2 times 3 equals 6." }, { instruction: "Division: Kekeno has 6 fish to share equally with 1 friend. How many do they each get?", visualHTML: `<div class="flex items-center gap-4 text-5xl"><span>🐟x6</span> <span class="text-red-500">÷</span> <span>🦭 🦭</span></div>`, options: ["2", "3", "4"], correctAnswer: "3", successMsg: "Perfect! 6 divided by 2 equals 3." }, { instruction: "Shapes: Kekeno sees a shape with 3 straight sides. What is it?", visualHTML: `<div class="text-8xl text-blue-500">🔺</div>`, options: ["Circle", "Square", "Triangle"], correctAnswer: "Triangle", successMsg: "Ka pai! A triangle has 3 sides." }, { instruction: "Shapes: Kekeno sees a perfectly round shape with no corners. What is it?", visualHTML: `<div class="text-8xl text-yellow-500">🟡</div>`, options: ["Circle", "Triangle", "Square"], correctAnswer: "Circle", successMsg: "Yes! A circle has no corners." }, { instruction: "Patterns: Red crab, blue fish, red crab... what comes next?", visualHTML: `<div class="flex gap-2 text-6xl">🦀 🐟 🦀 <span class="text-red-500">❓</span></div>`, options: ["🦀 Crab", "🐟 Fish", "🐚 Shell"], correctAnswer: "🐟 Fish", successMsg: "Great! The pattern repeats." }, { instruction: "Patterns: Big shell, small shell, big shell... what comes next?", visualHTML: `<div class="flex items-end gap-2 text-6xl"><span class="text-7xl">🐚</span> <span class="text-4xl">🐚</span> <span class="text-7xl">🐚</span> <span class="text-red-500">❓</span></div>`, options: ["Big shell", "Small shell", "Starfish"], correctAnswer: "Small shell", successMsg: "Awesome job following the pattern!" }] },
+            { id: 2, title: "2. Native Bush", icon: "🌳", subject: "Spelling", bgGradient: "bg-gradient-to-b from-green-400 via-green-300 to-emerald-200", characterId: "svg-kiwi", questions: [{ instruction: "The Kiwi is looking for a tree to sleep under. Which word spells TREE?", visualHTML: `<div class="text-8xl">🌳</div>`, options: ["BIRD", "TREE", "FISH"], correctAnswer: "TREE", successMsg: "Tino pai! You spelled TREE!" }, { instruction: "The Kiwi sees a small bird flying. Which word spells BIRD?", visualHTML: `<div class="text-8xl">🐦</div>`, options: ["BIRD", "FROG", "WORM"], correctAnswer: "BIRD", successMsg: "Great job spelling BIRD!" }, { instruction: "The Kiwi is hiding behind a fern. Which word spells FERN?", visualHTML: `<div class="text-8xl">🌿</div>`, options: ["ROCK", "DIRT", "FERN"], correctAnswer: "FERN", successMsg: "Awesome! You found the FERN." }, { instruction: "A green leaf falls on the Kiwi. Which word spells LEAF?", visualHTML: `<div class="text-8xl">🍃</div>`, options: ["LEAF", "WOOD", "BARK"], correctAnswer: "LEAF", successMsg: "Ka pai! You spelled LEAF." }, { instruction: "The Kiwi spots a little insect crawling. Which word spells BUG?", visualHTML: `<div class="text-8xl">🐛</div>`, options: ["BUG", "CAT", "DOG"], correctAnswer: "BUG", successMsg: "Yes! That is a BUG." }, { instruction: "The warm sun is shining through the leaves. Which word spells SUN?", visualHTML: `<div class="text-8xl">☀️</div>`, options: ["MOON", "SUN", "STAR"], correctAnswer: "SUN", successMsg: "Beautiful! The SUN is bright." }, { instruction: "The Kiwi sees a home for baby birds. Which word spells NEST?", visualHTML: `<div class="text-8xl">🪹</div>`, options: ["NEST", "WEB", "CAVE"], correctAnswer: "NEST", successMsg: "Perfect! Birds live in a NEST." }, { instruction: "Inside the nest is something fragile. Which word spells EGG?", visualHTML: `<div class="text-8xl">🥚</div>`, options: ["NUT", "SEED", "EGG"], correctAnswer: "EGG", successMsg: "Ka pai! You spelled EGG." }] },
+            { id: 3, title: "3. The Farm", icon: "🐑", subject: "Science", bgGradient: "bg-gradient-to-b from-blue-300 via-green-200 to-yellow-100", characterId: "svg-huntaway", questions: [{ instruction: "The Huntaway dog is sorting animals. Which animal gives us milk to drink?", visualHTML: `<div class="text-8xl">🥛</div>`, options: ["🐄 Cow", "🐑 Sheep", "🐖 Pig"], correctAnswer: "🐄 Cow", successMsg: "Great job! Cows give us milk." }, { instruction: "Which animal grows warm wool for our clothes?", visualHTML: `<div class="text-8xl">🧶</div>`, options: ["🐎 Horse", "🐑 Sheep", "🦆 Duck"], correctAnswer: "🐑 Sheep", successMsg: "Yes! Sheep give us wool." }, { instruction: "Which animal lays eggs for our breakfast?", visualHTML: `<div class="text-8xl">🥚</div>`, options: ["🐄 Cow", "🐖 Pig", "🐓 Chicken"], correctAnswer: "🐓 Chicken", successMsg: "Correct! Chickens lay eggs." }, { instruction: "Which busy insect makes sweet honey?", visualHTML: `<div class="text-8xl">🍯</div>`, options: ["🐝 Bee", "🦋 Butterfly", "🐞 Ladybug"], correctAnswer: "🐝 Bee", successMsg: "Awesome! Bees make honey." }, { instruction: "Which of these animals can breathe underwater?", visualHTML: `<div class="text-8xl">🌊</div>`, options: ["🐶 Dog", "🐟 Fish", "🐱 Cat"], correctAnswer: "🐟 Fish", successMsg: "Ka pai! Fish have gills to breathe in water." }, { instruction: "Which of these animals has feathers and can fly in the sky?", visualHTML: `<div class="text-8xl">☁️</div>`, options: ["🦅 Bird", "🐍 Snake", "🐢 Turtle"], correctAnswer: "🦅 Bird", successMsg: "Yes! Birds fly in the sky." }, { instruction: "Which little creature has 8 legs and spins a web?", visualHTML: `<div class="text-8xl">🕸️</div>`, options: ["🐜 Ant", "🕷️ Spider", "🐌 Snail"], correctAnswer: "🕷️ Spider", successMsg: "Great! Spiders have 8 legs." }, { instruction: "Which animal carries its home on its back and slithers?", visualHTML: `<div class="text-8xl">🌿</div>`, options: ["🐌 Snail", "🐸 Frog", "🐭 Mouse"], correctAnswer: "🐌 Snail", successMsg: "Perfect! Snails carry their shells." }] },
+            { id: 4, title: "4. Snowy Peak", icon: "🏔️", subject: "Logic", bgGradient: "bg-gradient-to-b from-sky-200 via-white to-slate-100", characterId: "svg-kea", questions: [{ instruction: "What happens to snow when the hot sun shines on it?", visualHTML: `<div class="flex items-center gap-4 text-7xl">❄️ <span class="text-red-500 text-5xl">➡️</span> ☀️</div>`, options: ["Turns to rock", "Melts to water", "Turns to wood"], correctAnswer: "Melts to water", successMsg: "Ka mau te wehi! The snow melts." }, { instruction: "What does a tiny seed need to grow into a plant?", visualHTML: `<div class="flex items-center gap-4 text-7xl">🌱 <span class="text-red-500 text-5xl">❓</span></div>`, options: ["Water & Soil", "Fire & Ice", "Wind & Sand"], correctAnswer: "Water & Soil", successMsg: "Yes! Seeds need water and soil." }, { instruction: "What does a hungry caterpillar turn into?", visualHTML: `<div class="flex items-center gap-4 text-7xl">🐛 <span class="text-red-500 text-5xl">➡️</span> ❓</div>`, options: ["A worm", "A butterfly", "A snail"], correctAnswer: "A butterfly", successMsg: "Beautiful! It becomes a butterfly." }, { instruction: "What appears in the sky when it rains and the sun shines at the same time?", visualHTML: `<div class="flex items-center gap-4 text-7xl">🌧️ <span class="text-red-500 text-5xl">+</span> ☀️</div>`, options: ["A rainbow", "A tornado", "A snowstorm"], correctAnswer: "A rainbow", successMsg: "Perfect! A rainbow appears." }, { instruction: "If you have dirty hands, what do you need to get them clean?", visualHTML: `<div class="flex items-center gap-4 text-7xl">👐 <span class="text-red-500 text-5xl">+</span> ❓</div>`, options: ["Mud", "Soap & Water", "Paint"], correctAnswer: "Soap & Water", successMsg: "Great logic! Soap gets them clean." }, { instruction: "If a room is too dark, what should you do?", visualHTML: `<div class="flex items-center gap-4 text-7xl">🌑 <span class="text-red-500 text-5xl">➡️</span> ❓</div>`, options: ["Close eyes", "Turn on light", "Hide"], correctAnswer: "Turn on light", successMsg: "Ka pai! Light makes it bright." }, { instruction: "What is the opposite of hot?", visualHTML: `<div class="flex items-center gap-4 text-7xl">🔥 <span class="text-red-500 text-5xl">↔️</span> ❓</div>`, options: ["Cold 🧊", "Warm ☀️", "Spicy 🌶️"], correctAnswer: "Cold 🧊", successMsg: "Yes! Cold is the opposite of hot." }, { instruction: "What do we do when it gets dark at night?", visualHTML: `<div class="flex items-center gap-4 text-7xl">🌙 <span class="text-red-500 text-5xl">➡️</span> ❓</div>`, options: ["Eat breakfast", "Go to sleep", "Go to school"], correctAnswer: "Go to sleep", successMsg: "Awesome! Night time is for sleeping." }] },
+            { id: 5, title: "5. The River", icon: "🏞️", subject: "Geography", bgGradient: "bg-gradient-to-b from-teal-300 via-blue-300 to-blue-500", characterId: "svg-whio", questions: [{ instruction: "Where does the sun rise in the morning?", visualHTML: `<div class="text-8xl">🌅</div>`, options: ["The East", "The West", "The Ground"], correctAnswer: "The East", successMsg: "Great job! The sun rises in the East." }, { instruction: "Where does the water in a river usually flow to?", visualHTML: `<div class="text-8xl">🏞️</div>`, options: ["The Sky", "The Ocean", "A Tree"], correctAnswer: "The Ocean", successMsg: "Ka pai! Rivers flow into the ocean." }, { instruction: "What do we call a very, very high piece of land?", visualHTML: `<div class="text-8xl">⛰️</div>`, options: ["A Valley", "A Mountain", "A Beach"], correctAnswer: "A Mountain", successMsg: "Yes! A mountain is very high." }, { instruction: "What do we call water falling from the clouds?", visualHTML: `<div class="text-8xl">🌧️</div>`, options: ["Snow", "Rain", "Wind"], correctAnswer: "Rain", successMsg: "Perfect! That is rain." }, { instruction: "In which season is it very cold and we wear warm coats?", visualHTML: `<div class="text-8xl">🧣</div>`, options: ["Summer", "Winter", "Spring"], correctAnswer: "Winter", successMsg: "Awesome! Winter is the cold season." }, { instruction: "Where would you find lots of sand and salty water?", visualHTML: `<div class="text-8xl">🌊</div>`, options: ["The Forest", "The Beach", "The City"], correctAnswer: "The Beach", successMsg: "Great! Sand is at the beach." }, { instruction: "What makes the branches of a tree wave and blow around?", visualHTML: `<div class="text-8xl">🌬️</div>`, options: ["The Sun", "The Wind", "The Grass"], correctAnswer: "The Wind", successMsg: "Ka pai! The wind blows the trees." }, { instruction: "What is a very big body of salty water called?", visualHTML: `<div class="text-8xl">🐋</div>`, options: ["A Puddle", "A Pond", "An Ocean"], correctAnswer: "An Ocean", successMsg: "Yes! The ocean is huge." }] },
+            { id: 6, title: "6. The Town", icon: "🏘️", subject: "Social Studies", bgGradient: "bg-gradient-to-b from-gray-200 via-stone-200 to-stone-400", characterId: "svg-tui", questions: [{ instruction: "Who helps us feel better when we are sick?", visualHTML: `<div class="text-8xl">🩺</div>`, options: ["A Doctor", "A Baker", "A Builder"], correctAnswer: "A Doctor", successMsg: "Great! Doctors help us heal." }, { instruction: "Who drives a big red truck and puts out fires?", visualHTML: `<div class="text-8xl">🚒</div>`, options: ["A Teacher", "A Firefighter", "A Farmer"], correctAnswer: "A Firefighter", successMsg: "Ka pai! Firefighters are brave." }, { instruction: "Who helps you learn how to read and write at school?", visualHTML: `<div class="text-8xl">📚</div>`, options: ["A Teacher", "A Dentist", "A Pilot"], correctAnswer: "A Teacher", successMsg: "Yes! Teachers help us learn." }, { instruction: "Where can you go to borrow lots of books for free?", visualHTML: `<div class="text-8xl">🏢</div>`, options: ["The Library", "The Toy Store", "The Bakery"], correctAnswer: "The Library", successMsg: "Awesome! The library has many books." }, { instruction: "Where do we go to buy fresh food and groceries?", visualHTML: `<div class="text-8xl">🛒</div>`, options: ["The Park", "The Supermarket", "The Cinema"], correctAnswer: "The Supermarket", successMsg: "Perfect! We buy food at the supermarket." }, { instruction: "Where is a safe place to play on swings and slides?", visualHTML: `<div class="text-8xl">🛝</div>`, options: ["The Road", "The Park", "The Roof"], correctAnswer: "The Park", successMsg: "Great! The park is for playing." }, { instruction: "Who drives a big vehicle that takes many people to school or work?", visualHTML: `<div class="text-8xl">🚌</div>`, options: ["A Bus Driver", "A Pilot", "A Chef"], correctAnswer: "A Bus Driver", successMsg: "Ka pai! Bus drivers take us places." }, { instruction: "Where is the safest place to walk across the street?", visualHTML: `<div class="text-8xl">🚶</div>`, options: ["Anywhere", "Pedestrian Crossing", "Behind a bus"], correctAnswer: "Pedestrian Crossing", successMsg: "Yes! Always use a safe crossing." }] },
+            { id: 7, title: "7. The Village", icon: "🛖", subject: "Architecture", bgGradient: "bg-gradient-to-b from-amber-200 via-orange-200 to-yellow-300", characterId: "svg-ruru", questions: [{ instruction: "Where does a mother bird build a home for her eggs?", visualHTML: `<div class="text-8xl">🪹</div>`, options: ["In a nest", "In a web", "In a cave"], correctAnswer: "In a nest", successMsg: "Great job! Birds build nests." }, { instruction: "Where do bees live and make honey together?", visualHTML: `<div class="text-8xl">🐝</div>`, options: ["A Hive", "A Shell", "A Web"], correctAnswer: "A Hive", successMsg: "Ka pai! Bees live in a hive." }, { instruction: "What is a special Māori meeting house called?", visualHTML: `<div class="text-8xl">🛖</div>`, options: ["A Wharenui", "A Castle", "A Tent"], correctAnswer: "A Wharenui", successMsg: "Tino pai! That is a Wharenui." }, { instruction: "What clear material is a window made of so we can see outside?", visualHTML: `<div class="text-8xl">🪟</div>`, options: ["Wood", "Glass", "Paper"], correctAnswer: "Glass", successMsg: "Yes! Glass is clear." }, { instruction: "What hard material are strong walls often built with?", visualHTML: `<div class="text-8xl">🧱</div>`, options: ["Jelly", "Leaves", "Bricks"], correctAnswer: "Bricks", successMsg: "Awesome! Bricks are very strong." }, { instruction: "What part of a house goes on top to keep the rain out?", visualHTML: `<div class="text-8xl">🏠</div>`, options: ["The Floor", "The Roof", "The Door"], correctAnswer: "The Roof", successMsg: "Perfect! The roof protects us." }, { instruction: "What do we open to walk inside a house?", visualHTML: `<div class="text-8xl">🚪</div>`, options: ["A Window", "A Chimney", "A Door"], correctAnswer: "A Door", successMsg: "Great! We walk through doors." }, { instruction: "What is a home made of fabric that we use when we go camping?", visualHTML: `<div class="text-8xl">⛺</div>`, options: ["A Tent", "A Skyscraper", "A Barn"], correctAnswer: "A Tent", successMsg: "Ka pai! Tents are for camping." }] },
+            { id: 8, title: "8. The Market", icon: "🍎", subject: "Economics", bgGradient: "bg-gradient-to-b from-rose-200 via-pink-200 to-red-300", characterId: "svg-takahe", questions: [{ instruction: "Is clean drinking water something you NEED to live, or just something you WANT?", visualHTML: `<div class="text-8xl">💧</div>`, options: ["A Need", "A Want", "Neither"], correctAnswer: "A Need", successMsg: "Great! We all need water to live." }, { instruction: "Is extra candy something you NEED to live, or something you WANT?", visualHTML: `<div class="text-8xl">🍬</div>`, options: ["A Need", "A Want", "Both"], correctAnswer: "A Want", successMsg: "Ka pai! Candy is just a want." }, { instruction: "Where is a safe place to keep your money so you can save it?", visualHTML: `<div class="text-8xl">🪙</div>`, options: ["In the garden", "A Piggy Bank", "In the trash"], correctAnswer: "A Piggy Bank", successMsg: "Yes! A piggy bank helps us save." }, { instruction: "When you give the shopkeeper money to get an apple, what are you doing?", visualHTML: `<div class="text-8xl">🤝</div>`, options: ["Buying", "Stealing", "Sleeping"], correctAnswer: "Buying", successMsg: "Awesome! That is called buying." }, { instruction: "If you give your friend a red car and they give you a blue block, what is that called?", visualHTML: `<div class="flex items-center gap-4 text-7xl">🚗 <span class="text-red-500 text-5xl">🔄</span> 🧊</div>`, options: ["Trading", "Running", "Crying"], correctAnswer: "Trading", successMsg: "Perfect! You traded toys." }, { instruction: "If you help do chores to get a few coins, what is that money called?", visualHTML: `<div class="text-8xl">🧹</div>`, options: ["Pocket Money", "Magic Money", "Leaf Money"], correctAnswer: "Pocket Money", successMsg: "Great! Helping out earns pocket money." }, { instruction: "Is a warm coat in winter a Need or a Want?", visualHTML: `<div class="text-8xl">🧥</div>`, options: ["A Need", "A Want", "Neither"], correctAnswer: "A Need", successMsg: "Ka pai! We need to stay warm." }, { instruction: "Is a brand new toy a Need to live, or a Want?", visualHTML: `<div class="text-8xl">🧸</div>`, options: ["A Need", "A Want", "Both"], correctAnswer: "A Want", successMsg: "Yes! Toys are wants." }] },
+            { id: 9, title: "9. The Workshop", icon: "⚙️", subject: "Technology", bgGradient: "bg-gradient-to-b from-indigo-200 via-purple-200 to-fuchsia-200", characterId: "svg-kakapo", questions: [{ instruction: "What do we call something built to help us do a job, like a hammer?", visualHTML: `<div class="text-8xl">🔨</div>`, options: ["A Tool", "A Toy", "A Pet"], correctAnswer: "A Tool", successMsg: "Great job! A hammer is a tool." }, { instruction: "What invisible power do computers and TVs need to turn on?", visualHTML: `<div class="text-8xl">💻</div>`, options: ["Water", "Electricity", "Sand"], correctAnswer: "Electricity", successMsg: "Ka pai! They need electricity." }, { instruction: "When we follow steps in order to bake a cake, what is that called?", visualHTML: `<div class="text-8xl">🍰</div>`, options: ["A Recipe", "A Song", "A Dance"], correctAnswer: "A Recipe", successMsg: "Yes! Or in computers, an Algorithm!" }, { instruction: "If we build a smart helper robot, what must it do?", visualHTML: `<div class="text-8xl">🤖</div>`, options: ["Follow Rules", "Eat Food", "Sleep"], correctAnswer: "Follow Rules", successMsg: "Awesome! Robots follow rules." }, { instruction: "What technology do we use to talk to someone far away?", visualHTML: `<div class="text-8xl">📱</div>`, options: ["A Phone", "A Rock", "A Shoe"], correctAnswer: "A Phone", successMsg: "Perfect! Phones connect us." }, { instruction: "What happens when you press the power button on a tablet?", visualHTML: `<div class="text-8xl">🔘</div>`, options: ["It turns on", "It flies away", "It melts"], correctAnswer: "It turns on", successMsg: "Great! Buttons control technology." }, { instruction: "What does an oven do to our food?", visualHTML: `<div class="text-8xl">🍳</div>`, options: ["Makes it Cold", "Makes it Hot", "Makes it Wet"], correctAnswer: "Makes it Hot", successMsg: "Ka pai! The oven cooks food." }, { instruction: "What technology in the kitchen keeps our milk cold?", visualHTML: `<div class="text-8xl">🧊</div>`, options: ["The Fridge", "The Toaster", "The Sink"], correctAnswer: "The Fridge", successMsg: "Yes! The fridge keeps things cold." }] },
+            { id: 10, title: "10. The Nest", icon: "📊", subject: "Sorting", bgGradient: "bg-gradient-to-b from-fuchsia-300 via-pink-300 to-rose-300", characterId: "svg-weka", questions: [{ instruction: "You have 3 red apples and 2 green apples. Which color has the MOST?", visualHTML: `<div class="flex gap-2 text-6xl">🍎 🍎 🍎 🍏 🍏</div>`, options: ["Red", "Green", "Same"], correctAnswer: "Red", successMsg: "Great job! 3 is more than 2." }, { instruction: "If you put all the cars in one box and all the blocks in another, what are you doing?", visualHTML: `<div class="text-8xl">📦</div>`, options: ["Sorting", "Sleeping", "Breaking"], correctAnswer: "Sorting", successMsg: "Ka pai! Sorting organizes things." }, { instruction: "You see 5 cats and 1 dog. Which animal has the LEAST amount?", visualHTML: `<div class="flex gap-2 text-6xl">🐈 🐈 🐈 🐈 🐈 🐕</div>`, options: ["Dog", "Cat", "Same"], correctAnswer: "Dog", successMsg: "Yes! 1 is less than 5." }, { instruction: "If we group things by shape, where does the blue square go?", visualHTML: `<div class="flex items-center gap-4 text-7xl">🟦 <span class="text-red-500 text-5xl">➡️</span> ❓</div>`, options: ["With Circles", "With Squares", "With Triangles"], correctAnswer: "With Squares", successMsg: "Awesome! Shapes belong together." }, { instruction: "If you find the biggest number in a list, what are you doing?", visualHTML: `<div class="text-8xl">🔢</div>`, options: ["Sorting", "Drawing", "Eating"], correctAnswer: "Sorting", successMsg: "Perfect! Finding the biggest is sorting." }, { instruction: "You have 2 bikes and 2 scooters. Is the amount the same or different?", visualHTML: `<div class="flex gap-2 text-6xl">🚲 🚲 🛴 🛴</div>`, options: ["The Same", "Different", "I don't know"], correctAnswer: "The Same", successMsg: "Great! 2 and 2 are equal." }, { instruction: "What do we call a picture that shows us organized numbers and information?", visualHTML: `<div class="text-8xl">📈</div>`, options: ["A Chart", "A Joke", "A Mirror"], correctAnswer: "A Chart", successMsg: "Ka pai! Charts show numbers easily." }, { instruction: "What are small lines drawn on paper to help us count quickly?", visualHTML: `<div class="text-8xl">||||</div>`, options: ["Tally Marks", "Scribbles", "Letters"], correctAnswer: "Tally Marks", successMsg: "Yes! Tally marks help us count." }] },
+            { id: 11, title: "11. The Volcano", icon: "🌋", subject: "Earth Science", bgGradient: "bg-gradient-to-b from-orange-400 via-red-400 to-amber-600", characterId: "svg-tuatara", questions: [{ instruction: "What hot, red liquid comes out of an erupting volcano?", visualHTML: `<div class="text-8xl">🌋</div>`, options: ["Water", "Lava", "Juice"], correctAnswer: "Lava", successMsg: "Great job! Lava is very hot melted rock." }, { instruction: "When the ground shakes really hard, what do we call it?", visualHTML: `<div class="text-8xl">🫨</div>`, options: ["An Earthquake", "A Windstorm", "A Rainstorm"], correctAnswer: "An Earthquake", successMsg: "Ka pai! Earthquakes shake the ground." }, { instruction: "What are hard, solid things you find on the ground outside?", visualHTML: `<div class="text-8xl">🪨</div>`, options: ["Clouds", "Rocks", "Feathers"], correctAnswer: "Rocks", successMsg: "Yes! Rocks are hard and solid." }, { instruction: "What two things is the surface of the Earth mostly made of?", visualHTML: `<div class="text-8xl">🌍</div>`, options: ["Land & Water", "Fire & Ice", "Candy & Cake"], correctAnswer: "Land & Water", successMsg: "Awesome! The Earth has land and oceans." }, { instruction: "What soft, grainy material covers a beach by the ocean?", visualHTML: `<div class="text-8xl">🏖️</div>`, options: ["Snow", "Sand", "Grass"], correctAnswer: "Sand", successMsg: "Perfect! We love playing in the sand." }, { instruction: "What do we call a deep, dark hole naturally made in a mountain?", visualHTML: `<div class="text-8xl">🦇</div>`, options: ["A Cloud", "A Cave", "A River"], correctAnswer: "A Cave", successMsg: "Great! Caves are cool and dark." }, { instruction: "What dark, messy stuff do plants and trees grow their roots in?", visualHTML: `<div class="text-8xl">🌱</div>`, options: ["Plastic", "Soil", "Metal"], correctAnswer: "Soil", successMsg: "Ka pai! Soil helps plants grow." }, { instruction: "What falls from the sky during a cold winter day and covers the ground?", visualHTML: `<div class="text-8xl">❄️</div>`, options: ["Snow", "Lava", "Sand"], correctAnswer: "Snow", successMsg: "Yes! Snow is freezing cold." }] },
+            { id: 12, title: "12. The Night Sky", icon: "🚀", subject: "Space Science", bgGradient: "bg-gradient-to-b from-indigo-900 via-purple-900 to-black", characterId: "svg-kereru", questions: [{ instruction: "What big, hot, glowing ball gives our Earth light during the day?", visualHTML: `<div class="text-8xl">☀️</div>`, options: ["The Moon", "The Sun", "A Lightbulb"], correctAnswer: "The Sun", successMsg: "Great job! The Sun is our closest star." }, { instruction: "What big rocky ball glows in the sky at night?", visualHTML: `<div class="text-8xl">🌕</div>`, options: ["The Moon", "The Cloud", "The Sun"], correctAnswer: "The Moon", successMsg: "Ka pai! The Moon orbits the Earth." }, { instruction: "What is the name of the beautiful planet that we live on?", visualHTML: `<div class="text-8xl">🌍</div>`, options: ["Mars", "Earth", "Saturn"], correctAnswer: "Earth", successMsg: "Yes! Earth is our home." }, { instruction: "What are the tiny twinkling lights we see in the dark night sky?", visualHTML: `<div class="text-8xl">✨</div>`, options: ["Birds", "Stars", "Planes"], correctAnswer: "Stars", successMsg: "Awesome! Stars are very far away." }, { instruction: "What machine do brave astronauts use to fly into space?", visualHTML: `<div class="text-8xl">🚀</div>`, options: ["A Rocket", "A Bus", "A Boat"], correctAnswer: "A Rocket", successMsg: "Perfect! Rockets zoom into space." }, { instruction: "What special clothes must an astronaut wear outside in space?", visualHTML: `<div class="text-8xl">👨‍🚀</div>`, options: ["A Swimsuit", "A Spacesuit", "A Raincoat"], correctAnswer: "A Spacesuit", successMsg: "Great! A spacesuit keeps them safe." }, { instruction: "Sometimes the moon looks like a thin smile. What shape is this?", visualHTML: `<div class="text-8xl">🌙</div>`, options: ["Square", "Crescent", "Triangle"], correctAnswer: "Crescent", successMsg: "Ka pai! That is a crescent moon." }, { instruction: "Which giant planet is famous for having beautiful rings around it?", visualHTML: `<div class="text-8xl">🪐</div>`, options: ["Earth", "Saturn", "The Sun"], correctAnswer: "Saturn", successMsg: "Yes! Saturn has amazing rings." }] },
+            { id: 13, title: "13. The Data Cave", icon: "📉", subject: "Graphs", bgGradient: "bg-gradient-to-b from-emerald-300 via-teal-300 to-cyan-300", characterId: "svg-pukeko", questions: [{ instruction: "If you want to quickly count 3 things on paper, what tally marks do you draw?", visualHTML: `<div class="text-8xl">📝</div>`, options: ["III", "V", "X"], correctAnswer: "III", successMsg: "Great job! III means three." }, { instruction: "If a line on a chart is pointing up, what does it usually mean?", visualHTML: `<div class="text-8xl">📈</div>`, options: ["Getting Less", "Getting More", "Stopping"], correctAnswer: "Getting More", successMsg: "Ka pai! Pointing up means growing." }, { instruction: "You have 5 rocks and your friend has 2 rocks. Who has the most?", visualHTML: `<div class="flex gap-4 text-6xl">🪨x5 <span class="text-red-500">vs</span> 🪨x2</div>`, options: ["Me (5)", "Friend (2)", "Same"], correctAnswer: "Me (5)", successMsg: "Yes! 5 is bigger than 2." }, { instruction: "When we put all the red things in one pile, what are we making?", visualHTML: `<div class="text-8xl">🍎🚗🔴</div>`, options: ["A Mess", "A Group", "A Circle"], correctAnswer: "A Group", successMsg: "Awesome! Grouping helps us organize." }, { instruction: "In a park, you see 10 pigeons and 2 ducks. Which bird is the most common?", visualHTML: `<div class="text-8xl">🐦🦆</div>`, options: ["Ducks", "Pigeons", "Neither"], correctAnswer: "Pigeons", successMsg: "Perfect! 10 is the biggest number." }, { instruction: "If you flip a coin in the air, what two sides can it land on?", visualHTML: `<div class="text-8xl">🪙</div>`, options: ["Up or Down", "Heads or Tails", "Red or Blue"], correctAnswer: "Heads or Tails", successMsg: "Great! A coin has heads and tails." }, { instruction: "What do we call a round chart that looks like it is cut into slices?", visualHTML: `<div class="text-8xl">🥧</div>`, options: ["A Pie Chart", "A Pizza Graph", "A Circle Drawing"], correctAnswer: "A Pie Chart", successMsg: "Ka pai! It is a pie chart." }, { instruction: "If you ask all your friends what their favorite color is, what are you doing?", visualHTML: `<div class="text-8xl">🙋‍♂️</div>`, options: ["Singing", "A Survey", "Sleeping"], correctAnswer: "A Survey", successMsg: "Yes! A survey gathers information." }] },
+            { id: 14, title: "14. The Code Cave", icon: "🧮", subject: "Math Puzzles", bgGradient: "bg-gradient-to-b from-blue-400 via-indigo-400 to-violet-500", characterId: "svg-kahu", questions: [{ instruction: "You have a list of numbers: 1, 2, 3, __, 5. What number is missing?", visualHTML: `<div class="text-6xl font-black">1, 2, 3, <span class="text-red-500">?</span>, 5</div>`, options: ["4", "6", "8"], correctAnswer: "4", successMsg: "Great job! The missing number is 4." }, { instruction: "If you have 10 data points and take away 2, how many do you have left?", visualHTML: `<div class="text-6xl font-black">10 <span class="text-red-500">-</span> 2 <span class="text-red-500">= ?</span></div>`, options: ["7", "8", "12"], correctAnswer: "8", successMsg: "Ka pai! 10 minus 2 is 8." }, { instruction: "Which of these is NOT a shape, so it doesn't belong in our shape data set?", visualHTML: `<div class="text-8xl">🔺 🔴 🟦 🍎</div>`, options: ["Triangle", "Square", "Apple"], correctAnswer: "Apple", successMsg: "Yes! An apple is a fruit, not a shape." }, { instruction: "We have data showing kids like apples (5), bananas (8), and grapes (3). Which is the favorite?", visualHTML: `<div class="text-8xl">🍎5 🍌8 🍇3</div>`, options: ["Apples", "Bananas", "Grapes"], correctAnswer: "Bananas", successMsg: "Awesome! 8 is the highest number." }, { instruction: "When a computer looks closely at a big list of numbers to find an answer, it is doing what?", visualHTML: `<div class="text-8xl">🔍</div>`, options: ["Analyzing Data", "Sleeping", "Painting"], correctAnswer: "Analyzing Data", successMsg: "Perfect! Analyzing helps find answers." }, { instruction: "If the pattern is Red, Blue, Red, Blue... what color is next?", visualHTML: `<div class="text-7xl">🔴 🔵 🔴 🔵 <span class="text-red-500">❓</span></div>`, options: ["Green", "Blue", "Red"], correctAnswer: "Red", successMsg: "Great! The pattern starts over with Red." }, { instruction: "What do we call a picture on a computer that shows data going up and down?", visualHTML: `<div class="text-8xl">📊</div>`, options: ["A Graph", "A Book", "A Toy"], correctAnswer: "A Graph", successMsg: "Ka pai! Graphs show information easily." }, { instruction: "If you organize your toys from smallest to biggest, what are you doing to the data?", visualHTML: `<div class="flex items-end gap-2 text-6xl"><span class="text-4xl">🧸</span> <span class="text-6xl">🧸</span> <span class="text-8xl">🧸</span></div>`, options: ["Hiding them", "Sorting them", "Breaking them"], correctAnswer: "Sorting them", successMsg: "Yes! Sorting puts things in order." }] },
+            { id: 15, title: "15. The Power Station", icon: "🔌", subject: "Electronics", bgGradient: "bg-gradient-to-b from-yellow-300 via-yellow-400 to-orange-400", characterId: "svg-weta", questions: [{ instruction: "What do we use to give power to a flashlight so it lights up?", visualHTML: `<div class="text-8xl">🔦</div>`, options: ["Water", "A Battery", "A Rock"], correctAnswer: "A Battery", successMsg: "Great job! Batteries store power." }, { instruction: "What carries electricity from the wall into our TV?", visualHTML: `<div class="text-8xl">📺</div>`, options: ["A Wire", "A String", "A Pipe"], correctAnswer: "A Wire", successMsg: "Ka pai! Wires carry electricity safely." }, { instruction: "When you flip a switch on the wall, what usually happens?", visualHTML: `<div class="text-8xl">💡</div>`, options: ["Water flows", "A Light turns on", "A door opens"], correctAnswer: "A Light turns on", successMsg: "Yes! A switch completes the circuit." }, { instruction: "What is the path called that electricity travels around in a circle?", visualHTML: `<div class="text-8xl">🔄</div>`, options: ["A Circuit", "A Road", "A River"], correctAnswer: "A Circuit", successMsg: "Awesome! Circuits must be connected." }, { instruction: "Is electricity safe to play with, or very dangerous?", visualHTML: `<div class="text-8xl">⚡</div>`, options: ["Safe", "Dangerous", "Boring"], correctAnswer: "Dangerous", successMsg: "Perfect! Always be careful with electricity." }, { instruction: "If a lightbulb is broken and the glass is cracked, will it light up?", visualHTML: `<div class="text-8xl">💥</div>`, options: ["Yes", "No", "Maybe"], correctAnswer: "No", successMsg: "Great! A broken bulb won't work." }, { instruction: "What shape on a battery shows the positive side?", visualHTML: `<div class="text-8xl">🔋</div>`, options: ["A Plus (+)", "A Minus (-)", "A Star"], correctAnswer: "A Plus (+)", successMsg: "Ka pai! Plus means positive." }, { instruction: "What object gets plugged into a wall socket?", visualHTML: `<div class="text-8xl">🔌</div>`, options: ["A Plug", "A Shoe", "An Apple"], correctAnswer: "A Plug", successMsg: "Yes! A plug connects to power." }] },
+            { id: 16, title: "16. The Robot Factory", icon: "🦾", subject: "Robots", bgGradient: "bg-gradient-to-b from-gray-400 via-zinc-400 to-slate-500", characterId: "svg-toroa", questions: [{ instruction: "What round part with teeth spins to make machines move?", visualHTML: `<div class="text-8xl">⚙️</div>`, options: ["A Wheel", "A Gear", "A Coin"], correctAnswer: "A Gear", successMsg: "Great job! Gears turn each other." }, { instruction: "What is a machine called that is built to act like a human or an animal?", visualHTML: `<div class="text-8xl">🤖</div>`, options: ["A Plant", "A Robot", "A Cloud"], correctAnswer: "A Robot", successMsg: "Ka pai! Robots are cool machines." }, { instruction: "What part of a robot acts like a muscle to make its arm move?", visualHTML: `<div class="text-8xl">🦾</div>`, options: ["A Motor", "A Battery", "A Screen"], correctAnswer: "A Motor", successMsg: "Yes! Motors create movement." }, { instruction: "How does a robot know if it bumps into a wall?", visualHTML: `<div class="text-8xl">🧱</div>`, options: ["It cries", "It uses a Sensor", "It guesses"], correctAnswer: "It uses a Sensor", successMsg: "Awesome! Sensors help robots feel." }, { instruction: "What acts like the 'brain' of the robot to tell it what to do?", visualHTML: `<div class="text-8xl">🧠</div>`, options: ["A Computer", "A Wire", "A Gear"], correctAnswer: "A Computer", successMsg: "Perfect! The computer processes code." }, { instruction: "If a robot has wheels, what is it designed to do?", visualHTML: `<div class="text-8xl">🛞</div>`, options: ["Fly", "Roll and Move", "Swim"], correctAnswer: "Roll and Move", successMsg: "Great! Wheels help it roll." }, { instruction: "When we combine moving machine parts with electronics, what is that called?", visualHTML: `<div class="text-8xl">🛠️</div>`, options: ["Farming", "Mechatronics", "Baking"], correctAnswer: "Mechatronics", successMsg: "Ka pai! That is mechatronics." }, { instruction: "What do we give a robot to tell it step-by-step instructions?", visualHTML: `<div class="text-8xl">📜</div>`, options: ["Food", "Code (Program)", "Water"], correctAnswer: "Code (Program)", successMsg: "Yes! Code tells it what to do." }] },
+            { id: 17, title: "17. The Council", icon: "🏛️", subject: "Rules", bgGradient: "bg-gradient-to-b from-sky-400 via-blue-400 to-indigo-400", characterId: "svg-korora", questions: [{ instruction: "When a group of people make a choice together by raising hands, what are they doing?", visualHTML: `<div class="text-8xl">🙋‍♀️🙋‍♂️</div>`, options: ["Sleeping", "Voting", "Fighting"], correctAnswer: "Voting", successMsg: "Great job! Voting is fair." }, { instruction: "What do we call the guidelines that keep everyone safe and play fair in a game?", visualHTML: `<div class="text-8xl">📜</div>`, options: ["Rules", "Jokes", "Secrets"], correctAnswer: "Rules", successMsg: "Ka pai! Rules help us all." }, { instruction: "If you see a piece of trash in the park, what is a good citizen thing to do?", visualHTML: `<div class="text-8xl">🗑️</div>`, options: ["Leave it", "Throw it in the bin", "Kick it"], correctAnswer: "Throw it in the bin", successMsg: "Yes! We keep our community clean." }, { instruction: "Who is the leader chosen to help make decisions for a whole city?", visualHTML: `<div class="text-8xl">🏅</div>`, options: ["The Mayor", "The Baker", "The Clown"], correctAnswer: "The Mayor", successMsg: "Awesome! The Mayor leads the city." }, { instruction: "When we take turns on the slide so everyone gets a turn, what are we being?", visualHTML: `<div class="text-8xl">🛝</div>`, options: ["Mean", "Fair", "Fast"], correctAnswer: "Fair", successMsg: "Perfect! Being fair is important." }, { instruction: "If someone is sad and needs help, what should a good community member do?", visualHTML: `<div class="text-8xl">🤝</div>`, options: ["Help them", "Laugh at them", "Run away"], correctAnswer: "Help them", successMsg: "Great! We help each other." }, { instruction: "What do we pay to the government to help build roads, schools, and parks?", visualHTML: `<div class="text-8xl">🪙</div>`, options: ["Candy", "Taxes", "Toys"], correctAnswer: "Taxes", successMsg: "Ka pai! Taxes pay for shared things." }, { instruction: "Is a park a place that belongs to just one person, or to the whole public?", visualHTML: `<div class="text-8xl">🌳</div>`, options: ["Just me", "The Public", "No one"], correctAnswer: "The Public", successMsg: "Yes! Public places are for everyone." }] },
+            { id: 18, title: "18. The Parliament", icon: "🗳️", subject: "Politics", bgGradient: "bg-gradient-to-b from-red-400 via-rose-400 to-pink-500", characterId: "svg-hoiho", questions: [{ instruction: "If three friends want to play tag and one wants to play hide-and-seek, what game should the group choose to be fair to the most people?", visualHTML: `<div class="flex gap-4 text-6xl">🏃🏃🏃 <span class="text-gray-500">vs</span> 🙈</div>`, options: ["Tag", "Hide-and-seek", "Nothing"], correctAnswer: "Tag", successMsg: "Great job! Tag got the most votes." }, { instruction: "When we have different ideas, what is a polite way to talk about it?", visualHTML: `<div class="text-8xl">🗣️</div>`, options: ["Yell loud", "Have a Debate", "Ignore them"], correctAnswer: "Have a Debate", successMsg: "Ka pai! A debate is sharing ideas politely." }, { instruction: "Who makes sure everyone gets a fair turn and follows the classroom rules?", visualHTML: `<div class="text-8xl">🧑‍🏫</div>`, options: ["The Teacher", "The Pet", "A Baby"], correctAnswer: "The Teacher", successMsg: "Yes! Teachers are fair leaders." }, { instruction: "If someone is passing out cookies to the class, how many should each person get to be fair?", visualHTML: `<div class="text-8xl">🍪</div>`, options: ["Zero", "The same amount", "All of them"], correctAnswer: "The same amount", successMsg: "Awesome! Fairness means equal shares." }, { instruction: "When a group makes a rule together, what should everyone do?", visualHTML: `<div class="text-8xl">📜</div>`, options: ["Follow the rule", "Break the rule", "Cry"], correctAnswer: "Follow the rule", successMsg: "Perfect! Rules keep groups working well." }, { instruction: "If you and your friend both want the red crayon, what is a good political choice?", visualHTML: `<div class="text-8xl">🖍️</div>`, options: ["Take it", "Share it", "Break it"], correctAnswer: "Share it", successMsg: "Great! Compromise is sharing." }, { instruction: "What do we call a leader who is chosen to help make rules for a whole country?", visualHTML: `<div class="text-8xl">🏛️</div>`, options: ["A Prime Minister", "An Astronaut", "A Plumber"], correctAnswer: "A Prime Minister", successMsg: "Ka pai! They lead the country." }, { instruction: "If a rule seems unfair to people, what can citizens do?", visualHTML: `<div class="text-8xl">✍️</div>`, options: ["Ask to change it", "Move away", "Do nothing"], correctAnswer: "Ask to change it", successMsg: "Yes! People can ask to change rules." }] },
+            { id: 19, title: "19. Thinking Tree", icon: "💭", subject: "Deep Thoughts", bgGradient: "bg-gradient-to-b from-purple-300 via-purple-400 to-indigo-500", characterId: "svg-kotuku", questions: [{ instruction: "When you don't know how the sky got so blue, what question word should you use?", visualHTML: `<div class="text-8xl">❓</div>`, options: ["Why?", "Who?", "Where?"], correctAnswer: "Why?", successMsg: "Great job! Thinkers ask 'Why?'" }, { instruction: "If you accidentally break your friend's toy, what is the right thing to do?", visualHTML: `<div class="text-8xl">🧸</div>`, options: ["Tell the truth", "Hide it", "Blame someone"], correctAnswer: "Tell the truth", successMsg: "Ka pai! Honesty is very important." }, { instruction: "What do we use to see things in our mind that aren't really there, like flying purple cows?", visualHTML: `<div class="text-8xl">🦄</div>`, options: ["A Mirror", "Our Imagination", "A Camera"], correctAnswer: "Our Imagination", successMsg: "Yes! Imagination is powerful." }, { instruction: "If someone is crying because they scraped their knee, how are they feeling?", visualHTML: `<div class="text-8xl">😢</div>`, options: ["Happy", "Angry", "Sad"], correctAnswer: "Sad", successMsg: "Awesome! We can feel sad sometimes." }, { instruction: "When you share your snacks with someone who has none, you are being...", visualHTML: `<div class="text-8xl">🍎</div>`, options: ["Mean", "Kind", "Fast"], correctAnswer: "Kind", successMsg: "Perfect! Kindness makes the world better." }, { instruction: "Is everything you hear in a silly story completely true in real life?", visualHTML: `<div class="text-8xl">🐉</div>`, options: ["Yes", "No", "Maybe"], correctAnswer: "No", successMsg: "Great! Some things are just stories." }, { instruction: "When you sit quietly and think about your day, what is your brain doing?", visualHTML: `<div class="text-8xl">🧠</div>`, options: ["Sleeping", "Reflecting", "Jumping"], correctAnswer: "Reflecting", successMsg: "Ka pai! Reflecting helps us learn." }, { instruction: "If two people look at the same cloud but see different shapes, who is right?", visualHTML: `<div class="text-8xl">☁️</div>`, options: ["Both of them", "Neither", "Only one"], correctAnswer: "Both of them", successMsg: "Yes! People can have different perspectives." }] },
+            { id: 20, title: "20. The Screen", icon: "📺", subject: "Media", bgGradient: "bg-gradient-to-b from-blue-300 via-cyan-300 to-teal-400", characterId: "svg-mohua", questions: [{ instruction: "What box with a screen do we look at to watch cartoons or movies?", visualHTML: `<div class="text-8xl">📺</div>`, options: ["A Radio", "A Television", "A Toaster"], correctAnswer: "A Television", successMsg: "Great job! That's a Television." }, { instruction: "When a video tells you to buy a new sugary cereal, what is it called?", visualHTML: `<div class="text-8xl">🥣</div>`, options: ["An Advertisement", "A Dream", "A School lesson"], correctAnswer: "An Advertisement", successMsg: "Ka pai! Ads try to sell us things." }, { instruction: "Where can we find lots of videos, games, and information on a tablet?", visualHTML: `<div class="text-8xl">🌐</div>`, options: ["The Garden", "The Internet", "The Fridge"], correctAnswer: "The Internet", successMsg: "Yes! The internet connects us." }, { instruction: "What do we listen to in the car to hear music and people talking?", visualHTML: `<div class="text-8xl">📻</div>`, options: ["A Radio", "A Television", "A Book"], correctAnswer: "A Radio", successMsg: "Awesome! Radios broadcast sound." }, { instruction: "Should you believe everything you see on the internet right away?", visualHTML: `<div class="text-8xl">🤔</div>`, options: ["Yes", "No", "Always"], correctAnswer: "No", successMsg: "Perfect! Always ask if it's true." }, { instruction: "When we take a picture of our family with a phone, what are we capturing?", visualHTML: `<div class="text-8xl">📸</div>`, options: ["A Photograph", "A Song", "A Smell"], correctAnswer: "A Photograph", successMsg: "Great! A photo is visual media." }, { instruction: "If you spend all day looking at a screen and your eyes hurt, what should you do?", visualHTML: `<div class="text-8xl">👀</div>`, options: ["Watch more", "Take a break outside", "Eat candy"], correctAnswer: "Take a break outside", successMsg: "Ka pai! Screen breaks are healthy." }, { instruction: "What do we call a big screen in a dark room where many people watch a film together?", visualHTML: `<div class="text-8xl">🍿</div>`, options: ["A Cinema", "A Bedroom", "A Kitchen"], correctAnswer: "A Cinema", successMsg: "Yes! We go to the cinema for movies." }] },
+            { id: 21, title: "21. The Newsroom", icon: "📰", subject: "Journalism", bgGradient: "bg-gradient-to-b from-gray-300 via-stone-300 to-gray-500", characterId: "svg-kokako", questions: [{ instruction: "What do we call someone who asks questions and writes stories to tell us what happened?", visualHTML: `<div class="text-8xl">🎤</div>`, options: ["A Reporter", "A Builder", "A Chef"], correctAnswer: "A Reporter", successMsg: "Great job! Reporters find the news." }, { instruction: "What big folded paper do adults read to find out what is happening in the world?", visualHTML: `<div class="text-8xl">📰</div>`, options: ["A Menu", "A Newspaper", "A Comic"], correctAnswer: "A Newspaper", successMsg: "Ka pai! Newspapers hold facts." }, { instruction: "When a reporter asks someone 'What did you see?', what are they doing?", visualHTML: `<div class="text-8xl">🎙️</div>`, options: ["Singing", "An Interview", "Sleeping"], correctAnswer: "An Interview", successMsg: "Yes! Interviews gather information." }, { instruction: "A journalist must make sure their story is based on...", visualHTML: `<div class="text-8xl">✅</div>`, options: ["Facts and Truth", "Lies and Jokes", "Magic"], correctAnswer: "Facts and Truth", successMsg: "Awesome! Truth is the most important." }, { instruction: "If a reporter takes a picture of a parade to put in the news, what tool do they use?", visualHTML: `<div class="text-8xl">📸</div>`, options: ["A Camera", "A Spoon", "A Shoe"], correctAnswer: "A Camera", successMsg: "Perfect! Cameras show us the scene." }, { instruction: "What question helps us figure out the person who did something?", visualHTML: `<div class="text-8xl">👤</div>`, options: ["Where?", "Who?", "Why?"], correctAnswer: "Who?", successMsg: "Great! 'Who' tells us the person." }, { instruction: "What question helps us figure out the place where something happened?", visualHTML: `<div class="text-8xl">📍</div>`, options: ["Who?", "What?", "Where?"], correctAnswer: "Where?", successMsg: "Ka pai! 'Where' finds the place." }, { instruction: "When news happens right now and goes on TV instantly, what is it called?", visualHTML: `<div class="text-8xl">🚨</div>`, options: ["Old News", "Live News", "Slow News"], correctAnswer: "Live News", successMsg: "Yes! Live news is happening right now." }] },
+            { id: 22, title: "22. The Signal Tower", icon: "📡", subject: "Messages", bgGradient: "bg-gradient-to-b from-orange-300 via-amber-300 to-yellow-400", characterId: "svg-titipounamu", questions: [{ instruction: "When you want to tell a friend a secret from far away, what tool can you use?", visualHTML: `<div class="text-8xl">📞</div>`, options: ["A Telephone", "A Spoon", "A Chair"], correctAnswer: "A Telephone", successMsg: "Great job! Telephones help us talk across distances." }, { instruction: "What do we call a piece of paper with a message inside an envelope?", visualHTML: `<div class="text-8xl">✉️</div>`, options: ["A Letter", "A Book", "A Leaf"], correctAnswer: "A Letter", successMsg: "Ka pai! We mail letters to communicate." }, { instruction: "When a traffic light turns red, what is it communicating to drivers?", visualHTML: `<div class="text-8xl">🚦</div>`, options: ["Go Fast", "Stop", "Sing"], correctAnswer: "Stop", successMsg: "Yes! Red means stop." }, { instruction: "If you nod your head up and down without speaking, what does it mean?", visualHTML: `<div class="text-8xl">↕️</div>`, options: ["No", "Yes", "Maybe"], correctAnswer: "Yes", successMsg: "Awesome! Nodding means yes." }, { instruction: "What do we call the language where people use their hands to communicate?", visualHTML: `<div class="text-8xl">👐</div>`, options: ["Sign Language", "Foot Language", "Ear Language"], correctAnswer: "Sign Language", successMsg: "Perfect! Sign language is beautiful." }, { instruction: "When you type a fast message on a computer or phone and press send, what is it?", visualHTML: `<div class="text-8xl">💬</div>`, options: ["A Text Message", "A Drawing", "A Song"], correctAnswer: "A Text Message", successMsg: "Great! Texts send instantly." }, { instruction: "If a boat is lost at sea, what bright light flashes to keep it away from rocks?", visualHTML: `<div class="text-8xl">🗼</div>`, options: ["A Lighthouse", "A Firefly", "A Lamp"], correctAnswer: "A Lighthouse", successMsg: "Ka pai! Lighthouses communicate danger." }, { instruction: "When you listen carefully to someone talking, you are being a good...", visualHTML: `<div class="text-8xl">👂</div>`, options: ["Listener", "Sleeper", "Runner"], correctAnswer: "Listener", successMsg: "Yes! Good communication needs listening." }] },
+            { id: 23, title: "23. The Studio", icon: "🎧", subject: "Music Tech", bgGradient: "bg-gradient-to-b from-fuchsia-400 via-purple-400 to-indigo-500", characterId: "svg-kaka", questions: [{ instruction: "What device do you wear over your ears to listen to music quietly?", visualHTML: `<div class="text-8xl">🎧</div>`, options: ["A Hat", "Headphones", "Glasses"], correctAnswer: "Headphones", successMsg: "Great job! Headphones play sound just for you." }, { instruction: "What do singers hold near their mouth to make their voice loud?", visualHTML: `<div class="text-8xl">🎤</div>`, options: ["A Microphone", "An Apple", "A Comb"], correctAnswer: "A Microphone", successMsg: "Ka pai! Microphones capture sound." }, { instruction: "What box pushes out loud music so everyone at a party can hear?", visualHTML: `<div class="text-8xl">🔊</div>`, options: ["A Speaker", "A Fridge", "A Book"], correctAnswer: "A Speaker", successMsg: "Yes! Speakers make music loud." }, { instruction: "What electronic instrument has black and white keys like a piano?", visualHTML: `<div class="text-8xl">🎹</div>`, options: ["A Synthesizer", "A Guitar", "A Drum"], correctAnswer: "A Synthesizer", successMsg: "Awesome! Keyboards can make any sound." }, { instruction: "When you turn a knob to make the music louder or quieter, what are you changing?", visualHTML: `<div class="text-8xl">🎚️</div>`, options: ["The Color", "The Volume", "The Time"], correctAnswer: "The Volume", successMsg: "Perfect! Volume controls how loud it is." }, { instruction: "What do we call it when we save a song on a computer so we can hear it later?", visualHTML: `<div class="text-8xl">⏺️</div>`, options: ["Recording", "Deleting", "Sleeping"], correctAnswer: "Recording", successMsg: "Great! Recording saves the music forever." }, { instruction: "What machine lets a DJ mix two songs together at a dance party?", visualHTML: `<div class="text-8xl">🎛️</div>`, options: ["A Mixer", "A Toaster", "A Blender"], correctAnswer: "A Mixer", successMsg: "Ka pai! DJs use mixers." }, { instruction: "What repeating thumping sound keeps the time in a song?", visualHTML: `<div class="text-8xl">🥁</div>`, options: ["The Beat", "The Melody", "The Silence"], correctAnswer: "The Beat", successMsg: "Yes! The beat makes us want to dance!" }] },
+
+            // NEW PHASE 5 LEVELS
+            {
+                id: 24, title: "24. The Farmhouse", icon: "🚜", subject: "Farming", bgGradient: "bg-gradient-to-b from-yellow-200 via-green-300 to-emerald-400", characterId: "svg-huntaway",
+                questions: [
+                    { instruction: "What big machine helps a farmer plow the fields?", visualHTML: `<div class="text-8xl">🚜</div>`, options: ["A Tractor", "A Bus", "A Plane"], correctAnswer: "A Tractor", successMsg: "Great job! Tractors are very strong." },
+                    { instruction: "Where do we plant tiny seeds so they can grow into food?", visualHTML: `<div class="flex items-center gap-4 text-7xl">🌱 <span class="text-red-500 text-5xl">➡️</span> ❓</div>`, options: ["In the soil", "On the roof", "In the pool"], correctAnswer: "In the soil", successMsg: "Ka pai! Plants need soil to grow." },
+                    { instruction: "What two things do crops need every day to grow big and strong?", visualHTML: `<div class="flex items-center gap-4 text-7xl">☀️ <span class="text-red-500 text-5xl">+</span> ❓</div>`, options: ["Sun and Water", "Fire and Ice", "Milk and Cookies"], correctAnswer: "Sun and Water", successMsg: "Yes! Plants drink water and love the sun." },
+                    { instruction: "What do we call collecting all the fully grown crops from the field?", visualHTML: `<div class="text-8xl">🧺</div>`, options: ["Harvesting", "Sleeping", "Painting"], correctAnswer: "Harvesting", successMsg: "Awesome! Harvesting brings the food in." },
+                    { instruction: "Which of these is a vegetable that grows underground in the dirt?", visualHTML: `<div class="text-8xl">🥕</div>`, options: ["A Carrot", "An Apple", "A Fish"], correctAnswer: "A Carrot", successMsg: "Perfect! Carrots grow in the ground." },
+                    { instruction: "What wooden or metal barrier keeps farm animals safely inside their field?", visualHTML: `<div class="text-8xl">🚧</div>`, options: ["A Fence", "A Pillow", "A Cloud"], correctAnswer: "A Fence", successMsg: "Great! Fences keep the animals safe." },
+                    { instruction: "Who takes care of the crops and animals all day long?", visualHTML: `<div class="text-8xl">🧑‍🌾</div>`, options: ["A Farmer", "A Pilot", "A Dentist"], correctAnswer: "A Farmer", successMsg: "Ka pai! Farmers work very hard." },
+                    { instruction: "Which farm animal gives us fresh milk to drink?", visualHTML: `<div class="text-8xl">🐄</div>`, options: ["A Cow", "A Chicken", "A Snake"], correctAnswer: "A Cow", successMsg: "Yes! Cows give us milk." }
+                ]
+            },
+            {
+                id: 25, title: "25. The Garden", icon: "🌻", subject: "Gardening", bgGradient: "bg-gradient-to-b from-green-200 via-lime-200 to-green-400", characterId: "svg-titipounamu",
+                questions: [
+                    { instruction: "What do beautiful tall flowers grow from?", visualHTML: `<div class="text-8xl">🌱</div>`, options: ["A tiny seed", "A rock", "A penny"], correctAnswer: "A tiny seed", successMsg: "Great job! A seed is the start of a plant." },
+                    { instruction: "What tool helps us gently pour water on our garden?", visualHTML: `<div class="text-8xl">🚿</div>`, options: ["A Watering Can", "A Hammer", "A Broom"], correctAnswer: "A Watering Can", successMsg: "Ka pai! Watering cans give plants a drink." },
+                    { instruction: "What buzzing insect helps flowers grow by moving their pollen around?", visualHTML: `<div class="text-8xl">🐝</div>`, options: ["A Bee", "A Spider", "A Snail"], correctAnswer: "A Bee", successMsg: "Yes! Bees are great helpers in the garden." },
+                    { instruction: "What part of the plant grows under the dirt to hold it up and drink water?", visualHTML: `<div class="text-8xl">🪢</div>`, options: ["Roots", "Leaves", "Petals"], correctAnswer: "Roots", successMsg: "Awesome! Roots are like drinking straws." },
+                    { instruction: "What sweet, red fruit grows on big trees in an orchard?", visualHTML: `<div class="text-8xl">🍎</div>`, options: ["An Apple", "A Potato", "A Carrot"], correctAnswer: "An Apple", successMsg: "Perfect! Apples grow on trees." },
+                    { instruction: "What green parts of a plant catch the warm sunlight?", visualHTML: `<div class="text-8xl">🍃</div>`, options: ["Leaves", "Roots", "Stems"], correctAnswer: "Leaves", successMsg: "Great! Leaves love the sun." },
+                    { instruction: "If a plant looks brown and droopy, what does it need right away?", visualHTML: `<div class="text-8xl">🥀</div>`, options: ["Water", "More dirt", "A blanket"], correctAnswer: "Water", successMsg: "Ka pai! Water will help it stand tall again." },
+                    { instruction: "What wiggly garden bug moves in the dirt and helps make the soil healthy?", visualHTML: `<div class="text-8xl">🪱</div>`, options: ["An Earthworm", "A Butterfly", "A Ladybug"], correctAnswer: "An Earthworm", successMsg: "Yes! Earthworms are good for the soil." }
+                ]
+            },
+            {
+                id: 26, title: "26. The Clinic", icon: "🩺", subject: "Healthy Habits", bgGradient: "bg-gradient-to-b from-blue-100 via-cyan-100 to-blue-200", characterId: "svg-tui",
+                questions: [
+                    { instruction: "What should you do to your hands with soap before you eat a meal?", visualHTML: `<div class="text-8xl">🧼</div>`, options: ["Wash them", "Paint them", "Hide them"], correctAnswer: "Wash them", successMsg: "Great job! Washing hands stops germs." },
+                    { instruction: "What do you use with toothpaste to keep your smile clean and strong?", visualHTML: `<div class="text-8xl">🪥</div>`, options: ["A Toothbrush", "A Spoon", "A Towel"], correctAnswer: "A Toothbrush", successMsg: "Ka pai! Brush your teeth every day." },
+                    { instruction: "Which of these drinks is the healthiest thing for your body?", visualHTML: `<div class="text-8xl">💧</div>`, options: ["Water", "Soda", "Juice"], correctAnswer: "Water", successMsg: "Yes! Water keeps you hydrated." },
+                    { instruction: "What should you do when you feel very tired and it is dark outside?", visualHTML: `<div class="text-8xl">🛏️</div>`, options: ["Go to sleep", "Play outside", "Eat candy"], correctAnswer: "Go to sleep", successMsg: "Awesome! Sleep helps you grow." },
+                    { instruction: "Which of these foods helps your body grow strong muscles?", visualHTML: `<div class="text-8xl">🥦</div>`, options: ["Vegetables", "Lollipops", "Cake"], correctAnswer: "Vegetables", successMsg: "Perfect! Vegetables are full of vitamins." },
+                    { instruction: "How can you make your muscles strong and your heart happy?", visualHTML: `<div class="text-8xl">🏃</div>`, options: ["Exercise and Play", "Sit all day", "Watch TV"], correctAnswer: "Exercise and Play", successMsg: "Great! Moving your body is healthy." },
+                    { instruction: "If you get a small cut on your knee, what should you put on it to keep it clean?", visualHTML: `<div class="text-8xl">🩹</div>`, options: ["A Bandage", "A Hat", "A Sticker"], correctAnswer: "A Bandage", successMsg: "Ka pai! Bandages protect cuts." },
+                    { instruction: "What happens to your body when you catch a cold?", visualHTML: `<div class="text-8xl">🤧</div>`, options: ["You feel sick", "You turn green", "You fly"], correctAnswer: "You feel sick", successMsg: "Yes! It's okay, you just need rest." }
+                ]
+            },
+            {
+                id: 27, title: "27. The Quiet Place", icon: "💖", subject: "Feelings", bgGradient: "bg-gradient-to-b from-indigo-200 via-purple-200 to-pink-200", characterId: "svg-ruru",
+                questions: [
+                    { instruction: "If you feel very angry or frustrated, what is a good thing to do first?", visualHTML: `<div class="text-8xl">🌬️</div>`, options: ["Take deep breaths", "Yell loud", "Throw a toy"], correctAnswer: "Take deep breaths", successMsg: "Great job! Deep breaths calm us down." },
+                    { instruction: "Is it okay to cry if you feel sad about something?", visualHTML: `<div class="text-8xl">💧</div>`, options: ["Yes, always", "No, never", "Only sometimes"], correctAnswer: "Yes, always", successMsg: "Ka pai! Crying helps let sad feelings out." },
+                    { instruction: "If you are worried or scared, who should you talk to?", visualHTML: `<div class="text-8xl">🧑‍🤝‍🧑</div>`, options: ["A grown-up you trust", "A stranger", "Nobody"], correctAnswer: "A grown-up you trust", successMsg: "Yes! Talking to someone safe helps." },
+                    { instruction: "What can make you feel better if you are feeling a bit lonely?", visualHTML: `<div class="text-8xl">🤗</div>`, options: ["A warm hug", "A loud noise", "Running away"], correctAnswer: "A warm hug", successMsg: "Awesome! Hugs make us feel loved." },
+                    { instruction: "When things get too loud and busy in the room, what can you do?", visualHTML: `<div class="text-8xl">🤫</div>`, options: ["Take a quiet break", "Yell louder", "Spin around"], correctAnswer: "Take a quiet break", successMsg: "Perfect! Quiet time rests your brain." },
+                    { instruction: "If you make a mistake while drawing, what is a kind thing to say to yourself?", visualHTML: `<div class="text-8xl">🌟</div>`, options: ["I will try again", "I am bad at this", "I give up"], correctAnswer: "I will try again", successMsg: "Great! Mistakes are how we learn." },
+                    { instruction: "How does doing something kind for a friend usually make you feel inside?", visualHTML: `<div class="text-8xl">💖</div>`, options: ["Happy", "Angry", "Tired"], correctAnswer: "Happy", successMsg: "Ka pai! Kindness feels good for everyone." },
+                    { instruction: "What is a nice, peaceful thing to think about before you go to sleep?", visualHTML: `<div class="text-8xl">🌙</div>`, options: ["Something you are thankful for", "A scary monster", "A loud storm"], correctAnswer: "Something you are thankful for", successMsg: "Yes! Happy thoughts make for happy dreams." }
+                ]
+            },
+
+            // ==========================================
+            // PHASE 6: NEW LEVELS (28 - 38)
+            // ==========================================
+            {
+                id: 28, title: "28. The Vineyard", icon: "🍇", subject: "Grape Growing", bgGradient: "bg-gradient-to-b from-purple-200 via-fuchsia-200 to-pink-300", characterId: "svg-kea",
+                questions: [
+                    { instruction: "What small, round fruit grows on a vine in bunches?", visualHTML: `<div class="text-8xl">🍇</div>`, options: ["Grapes", "Apples", "Bananas"], correctAnswer: "Grapes", successMsg: "Great job! Grapes grow on vines." },
+                    { instruction: "What do vines use to climb up tall wooden posts?", visualHTML: `<div class="text-8xl">🌿</div>`, options: ["Their tendrils and stems", "Their roots", "Magic"], correctAnswer: "Their tendrils and stems", successMsg: "Ka pai! Vines love to climb." },
+                    { instruction: "What do grapes need a lot of to grow sweet and juicy?", visualHTML: `<div class="flex items-center gap-4 text-7xl">🍇 <span class="text-red-500 text-5xl">+</span> ❓</div>`, options: ["Warm Sunlight", "Cold Snow", "Loud Music"], correctAnswer: "Warm Sunlight", successMsg: "Yes! Sun makes them sweet." },
+                    { instruction: "What delicious drink can we make when we squeeze fresh grapes?", visualHTML: `<div class="text-8xl">🧃</div>`, options: ["Grape Juice", "Milk", "Tea"], correctAnswer: "Grape Juice", successMsg: "Awesome! Squeezed grapes make juice." },
+                    { instruction: "When grapes are dried in the hot sun for a long time, what do they become?", visualHTML: `<div class="text-8xl">☀️</div>`, options: ["Raisins", "Popcorn", "Bread"], correctAnswer: "Raisins", successMsg: "Perfect! Raisins are dried grapes." },
+                    { instruction: "Who helps pick all the grapes when they are perfectly ripe?", visualHTML: `<div class="text-8xl">🧑‍🌾</div>`, options: ["The Farmers", "The Police", "The Astronauts"], correctAnswer: "The Farmers", successMsg: "Great! Farmers pick the harvest." },
+                    { instruction: "In what colorful season do we usually pick the ripe grapes?", visualHTML: `<div class="text-8xl">🍂</div>`, options: ["Autumn (Fall)", "Winter", "Spring"], correctAnswer: "Autumn (Fall)", successMsg: "Ka pai! Autumn is harvest time." },
+                    { instruction: "What happens to the green vines in the cold winter?", visualHTML: `<div class="text-8xl">❄️</div>`, options: ["They lose their leaves", "They turn blue", "They fly away"], correctAnswer: "They lose their leaves", successMsg: "Yes! Vines rest in the winter." }
+                ]
+            },
+            {
+                id: 29, title: "29. Earth Care", icon: "🌍", subject: "Environment", bgGradient: "bg-gradient-to-b from-green-200 via-emerald-200 to-teal-300", characterId: "svg-tui",
+                questions: [
+                    { instruction: "Where is the right place to put your empty plastic wrappers?", visualHTML: `<div class="text-8xl">♻️</div>`, options: ["In the Recycling or Bin", "On the ground", "In the river"], correctAnswer: "In the Recycling or Bin", successMsg: "Great job! Let's not litter." },
+                    { instruction: "What tall green plants help give us clean air to breathe?", visualHTML: `<div class="text-8xl">🌳</div>`, options: ["Trees", "Mushrooms", "Rocks"], correctAnswer: "Trees", successMsg: "Ka pai! Trees clean the air." },
+                    { instruction: "If you leave a room empty, what should you do to the lights to save power?", visualHTML: `<div class="text-8xl">💡</div>`, options: ["Turn them off", "Leave them on", "Break them"], correctAnswer: "Turn them off", successMsg: "Yes! Saving power helps the Earth." },
+                    { instruction: "Why is it better to use a reusable water bottle instead of buying plastic ones?", visualHTML: `<div class="text-8xl">🚰</div>`, options: ["It makes less plastic waste", "It is louder", "It is magical"], correctAnswer: "It makes less plastic waste", successMsg: "Awesome! Less plastic is fantastic." },
+                    { instruction: "What happens if a big factory puffs dark smoke up into the sky?", visualHTML: `<div class="text-8xl">🏭</div>`, options: ["Air Pollution", "A Rainbow", "Snow"], correctAnswer: "Air Pollution", successMsg: "Perfect! We want clean air, not pollution." },
+                    { instruction: "Which of these is a clean way to travel that doesn't make any smoke?", visualHTML: `<div class="text-8xl">🚲</div>`, options: ["A Bicycle", "A Big Truck", "A Rocket"], correctAnswer: "A Bicycle", successMsg: "Great! Bikes are clean and quiet." },
+                    { instruction: "What natural power can we collect from the sky to make electricity?", visualHTML: `<div class="text-8xl">☀️</div>`, options: ["Solar Power (Sun)", "Moon Power", "Cloud Power"], correctAnswer: "Solar Power (Sun)", successMsg: "Ka pai! Solar panels use the sun." },
+                    { instruction: "Who shares this big beautiful Earth with us?", visualHTML: `<div class="text-8xl">🌍</div>`, options: ["Animals and Plants", "Just Humans", "Nobody"], correctAnswer: "Animals and Plants", successMsg: "Yes! We must protect our animal friends." }
+                ]
+            },
+            {
+                id: 30, title: "30. Animal Homes", icon: "🐸", subject: "Ecology", bgGradient: "bg-gradient-to-b from-emerald-200 via-green-300 to-lime-300", characterId: "svg-tuatara",
+                questions: [
+                    { instruction: "Where does a little green frog love to live?", visualHTML: `<div class="text-8xl">🐸</div>`, options: ["A wet pond", "A dry desert", "A cold freezer"], correctAnswer: "A wet pond", successMsg: "Great job! Frogs need water." },
+                    { instruction: "What happens if a bird's favorite tree gets cut down?", visualHTML: `<div class="text-8xl">🪹</div>`, options: ["It loses its home", "It gets happy", "It turns into a fish"], correctAnswer: "It loses its home", successMsg: "Ka pai! Animals need their homes." },
+                    { instruction: "What sweet stuff do bees take from flowers to make honey?", visualHTML: `<div class="text-8xl">🌸</div>`, options: ["Nectar", "Leaves", "Dirt"], correctAnswer: "Nectar", successMsg: "Yes! Bees and flowers help each other." },
+                    { instruction: "If there are too many pesky flies, what animal helps by catching them in a web?", visualHTML: `<div class="text-8xl">🕷️</div>`, options: ["A Spider", "A Dog", "A Horse"], correctAnswer: "A Spider", successMsg: "Awesome! Spiders balance the ecosystem." },
+                    { instruction: "Where do worms live and wiggle to help make the dirt healthy?", visualHTML: `<div class="text-8xl">🪱</div>`, options: ["Underground", "In the clouds", "In a tree"], correctAnswer: "Underground", successMsg: "Perfect! Worms are underground helpers." },
+                    { instruction: "What happens when a forest is healthy and full of trees?", visualHTML: `<div class="text-8xl">🌲</div>`, options: ["Lots of animals live there", "It is empty", "It gets very hot"], correctAnswer: "Lots of animals live there", successMsg: "Great! Healthy forests are full of life." },
+                    { instruction: "What does a fish absolutely need to survive in a river?", visualHTML: `<div class="text-8xl">🐟</div>`, options: ["Clean Water", "Hot Coffee", "Mud"], correctAnswer: "Clean Water", successMsg: "Ka pai! Clean water is life." },
+                    { instruction: "If a plant drops seeds on the ground, what happens next year?", visualHTML: `<div class="text-8xl">🌱</div>`, options: ["New plants grow", "The seeds run away", "Nothing"], correctAnswer: "New plants grow", successMsg: "Yes! The circle of life continues." }
+                ]
+            },
+            {
+                id: 31, title: "31. The Clear Stream", icon: "💧", subject: "Water Purity", bgGradient: "bg-gradient-to-b from-blue-300 via-cyan-300 to-blue-400", characterId: "svg-whio",
+                questions: [
+                    { instruction: "What color should clean, safe drinking water be?", visualHTML: `<div class="text-8xl">💧</div>`, options: ["Clear", "Brown", "Purple"], correctAnswer: "Clear", successMsg: "Great job! Clean water is clear." },
+                    { instruction: "What happens if people throw trash into the river?", visualHTML: `<div class="text-8xl">🗑️</div>`, options: ["The water gets dirty", "The water gets cleaner", "The fish smile"], correctAnswer: "The water gets dirty", successMsg: "Ka pai! Trash makes water unsafe." },
+                    { instruction: "Who lives in our rivers and needs the water to stay perfectly clean?", visualHTML: `<div class="text-8xl">🐟</div>`, options: ["Fish and Frogs", "Lions and Tigers", "Cats and Dogs"], correctAnswer: "Fish and Frogs", successMsg: "Yes! Water is their whole home." },
+                    { instruction: "What should you do before drinking water from a muddy puddle outside?", visualHTML: `<div class="text-8xl">🚫</div>`, options: ["Don't drink it at all!", "Drink it quickly", "Add sugar"], correctAnswer: "Don't drink it at all!", successMsg: "Awesome! Muddy water has bad germs." },
+                    { instruction: "What natural things help filter and clean water as it moves underground?", visualHTML: `<div class="text-8xl">🪨</div>`, options: ["Rocks and Sand", "Plastic and Metal", "Leaves and Sticks"], correctAnswer: "Rocks and Sand", successMsg: "Perfect! The earth filters water naturally." },
+                    { instruction: "If tap water has too much dirt or chemicals, is it safe for us to drink?", visualHTML: `<div class="text-8xl">🤢</div>`, options: ["No", "Yes", "Maybe"], correctAnswer: "No", successMsg: "Great! We must purify dirty water." },
+                    { instruction: "How can we be kind and save water when we are brushing our teeth?", visualHTML: `<div class="text-8xl">🚰</div>`, options: ["Turn off the tap", "Leave the water running", "Use hot water"], correctAnswer: "Turn off the tap", successMsg: "Ka pai! Saving water is very smart." },
+                    { instruction: "Where does the fresh, clean rain water naturally come from?", visualHTML: `<div class="text-8xl">🌧️</div>`, options: ["The Clouds", "The Ground", "A Hose"], correctAnswer: "The Clouds", successMsg: "Yes! The water cycle brings us rain." }
+                ]
+            },
+            {
+                id: 32, title: "32. The Bakery", icon: "🍞", subject: "Making Food", bgGradient: "bg-gradient-to-b from-orange-200 via-amber-200 to-yellow-300", characterId: "svg-weka",
+                questions: [
+                    { instruction: "What tall, yellow farm plant do we crush to make flour?", visualHTML: `<div class="text-8xl">🌾</div>`, options: ["Wheat", "Grass", "Trees"], correctAnswer: "Wheat", successMsg: "Great job! Flour comes from wheat." },
+                    { instruction: "What do we make when we mix flour and water together?", visualHTML: `<div class="text-8xl">🥣</div>`, options: ["Dough for bread", "Soup", "Juice"], correctAnswer: "Dough for bread", successMsg: "Ka pai! Dough is squishy and fun." },
+                    { instruction: "Where does a baker put the dough to cook it and make it puff up?", visualHTML: `<div class="text-8xl">♨️</div>`, options: ["An Oven", "A Fridge", "A Washing Machine"], correctAnswer: "An Oven", successMsg: "Yes! The hot oven bakes the bread." },
+                    { instruction: "What white liquid from a cow do we use to make cheese and butter?", visualHTML: `<div class="text-8xl">🥛</div>`, options: ["Milk", "Water", "Lemonade"], correctAnswer: "Milk", successMsg: "Awesome! Milk makes dairy foods." },
+                    { instruction: "What do we get from farm chickens to help bake a fluffy cake?", visualHTML: `<div class="text-8xl">🥚</div>`, options: ["Eggs", "Feathers", "Seeds"], correctAnswer: "Eggs", successMsg: "Perfect! Eggs hold the cake together." },
+                    { instruction: "What do we add to cakes and cookies to make them taste very sweet?", visualHTML: `<div class="text-8xl">🍬</div>`, options: ["Sugar", "Salt", "Pepper"], correctAnswer: "Sugar", successMsg: "Great! Just don't use too much." },
+                    { instruction: "Who is the person that mixes all the ingredients together to make our food?", visualHTML: `<div class="text-8xl">🧑‍🍳</div>`, options: ["The Baker / Chef", "The Plumber", "The Police"], correctAnswer: "The Baker / Chef", successMsg: "Ka pai! Bakers make delicious things." },
+                    { instruction: "Before food gets to the supermarket shelf, where is it put together?", visualHTML: `<div class="text-8xl">🏭</div>`, options: ["A kitchen or factory", "A bedroom", "A park"], correctAnswer: "A kitchen or factory", successMsg: "Yes! Food production happens in big kitchens." }
+                ]
+            },
+            {
+                id: 33, title: "33. Local Shops", icon: "🚚", subject: "Trade & Transport", bgGradient: "bg-gradient-to-b from-gray-200 via-stone-300 to-gray-400", characterId: "svg-kahu",
+                questions: [
+                    { instruction: "How do big boxes of apples get from the farm to the city supermarket?", visualHTML: `<div class="text-8xl">🚚</div>`, options: ["By Delivery Truck", "By Bicycle", "By Walking"], correctAnswer: "By Delivery Truck", successMsg: "Great job! Trucks carry heavy things." },
+                    { instruction: "If one town has lots of wood, and another town has lots of wool, what can they do?", visualHTML: `<div class="text-8xl">🔄</div>`, options: ["Trade with each other", "Keep it all", "Throw it away"], correctAnswer: "Trade with each other", successMsg: "Ka pai! Trading helps everyone." },
+                    { instruction: "What do you give to a shopkeeper when you want to buy a new book?", visualHTML: `<div class="text-8xl">💵</div>`, options: ["Money", "A High-Five", "A Rock"], correctAnswer: "Money", successMsg: "Yes! Money pays for goods." },
+                    { instruction: "Where does the local bakery usually get its bags of flour?", visualHTML: `<div class="text-8xl">🌾</div>`, options: ["From a local farm or mill", "From the sky", "From the ocean"], correctAnswer: "From a local farm or mill", successMsg: "Awesome! Local businesses work together." },
+                    { instruction: "Why do we see so many big trucks driving on the highways every day?", visualHTML: `<div class="text-8xl">🛣️</div>`, options: ["To deliver our goods", "To go for a joyride", "To sleep"], correctAnswer: "To deliver our goods", successMsg: "Perfect! They keep the shops full." },
+                    { instruction: "What do we call a place where many people come together to buy and sell things?", visualHTML: `<div class="text-8xl">🏪</div>`, options: ["A Marketplace", "A Library", "A Hospital"], correctAnswer: "A Marketplace", successMsg: "Great! Markets are busy and fun." },
+                    { instruction: "If I make wooden toys and you make warm clothes, we can...", visualHTML: `<div class="text-8xl">🤝</div>`, options: ["Buy from each other", "Argue", "Hide"], correctAnswer: "Buy from each other", successMsg: "Ka pai! That is local trade." },
+                    { instruction: "What helps a town grow, share, and keep everyone happy?", visualHTML: `<div class="text-8xl">🏙️</div>`, options: ["Working and trading together", "Never talking", "Breaking things"], correctAnswer: "Working and trading together", successMsg: "Yes! Communities thrive together." }
+                ]
+            },
+            {
+                id: 34, title: "34. The Big Port", icon: "🚢", subject: "Global Trading", bgGradient: "bg-gradient-to-b from-cyan-200 via-blue-200 to-sky-300", characterId: "svg-toroa",
+                questions: [
+                    { instruction: "How do heavy boxes of cars and toys cross the giant ocean to our country?", visualHTML: `<div class="text-8xl">🚢</div>`, options: ["Huge Cargo Ships", "Tiny Rowboats", "Swimming"], correctAnswer: "Huge Cargo Ships", successMsg: "Great job! Cargo ships are massive." },
+                    { instruction: "How do small, important packages travel very quickly to other countries?", visualHTML: `<div class="text-8xl">✈️</div>`, options: ["Cargo Airplanes", "Trains", "Buses"], correctAnswer: "Cargo Airplanes", successMsg: "Ka pai! Planes are very fast." },
+                    { instruction: "What do we call the giant metal box that holds all the goods on a ship?", visualHTML: `<div class="text-8xl">📦</div>`, options: ["A Shipping Container", "A Lunchbox", "A Trash Can"], correctAnswer: "A Shipping Container", successMsg: "Yes! Containers stack up like blocks." },
+                    { instruction: "If New Zealand grows extra kiwifruit, what can we do with it to make money?", visualHTML: `<div class="text-8xl">🥝</div>`, options: ["Sell it to other countries", "Let it rot", "Hide it"], correctAnswer: "Sell it to other countries", successMsg: "Awesome! We share our food globally." },
+                    { instruction: "Where do big ships safely park to unload all their cargo containers?", visualHTML: `<div class="text-8xl">⚓</div>`, options: ["A Port or Harbor", "A Beach", "A Swimming Pool"], correctAnswer: "A Port or Harbor", successMsg: "Perfect! Ports are very busy places." },
+                    { instruction: "What is the fancy word for selling our things to far away places?", visualHTML: `<div class="text-8xl">📤</div>`, options: ["Exporting", "Sleeping", "Painting"], correctAnswer: "Exporting", successMsg: "Great! Exporting means sending out." },
+                    { instruction: "What is the fancy word for bringing new things into our country from far away?", visualHTML: `<div class="text-8xl">📥</div>`, options: ["Importing", "Jumping", "Singing"], correctAnswer: "Importing", successMsg: "Ka pai! Importing means bringing in." },
+                    { instruction: "Does one single country make everything in the whole world?", visualHTML: `<div class="text-8xl">🌍</div>`, options: ["No, we all trade and share", "Yes, just one", "Nobody makes anything"], correctAnswer: "No, we all trade and share", successMsg: "Yes! Global trade connects the world." }
+                ]
+            },
+            {
+                id: 35, title: "35. The Bank", icon: "🏦", subject: "Money Basics", bgGradient: "bg-gradient-to-b from-yellow-200 via-amber-200 to-orange-200", characterId: "svg-kakapo",
+                questions: [
+                    { instruction: "If you save your pocket money, where is a very safe building to keep it?", visualHTML: `<div class="text-8xl">🏦</div>`, options: ["A Bank", "A Bakery", "A Treehouse"], correctAnswer: "A Bank", successMsg: "Great job! Banks keep money safe." },
+                    { instruction: "What happens if you spend all of your money on candy today?", visualHTML: `<div class="text-8xl">🍭</div>`, options: ["I will have no money for toys", "I will get more money", "The money grows"], correctAnswer: "I will have no money for toys", successMsg: "Ka pai! Once you spend it, it's gone." },
+                    { instruction: "What is it called when you keep money for a long time to buy something big?", visualHTML: `<div class="text-8xl">🐖</div>`, options: ["Saving", "Wasting", "Losing"], correctAnswer: "Saving", successMsg: "Yes! Saving takes patience." },
+                    { instruction: "Why do adults go to work at their jobs every day?", visualHTML: `<div class="text-8xl">💼</div>`, options: ["To earn money", "To play games", "To take naps"], correctAnswer: "To earn money", successMsg: "Awesome! Hard work earns a paycheck." },
+                    { instruction: "If lots of people want a very rare toy, what usually happens to the price?", visualHTML: `<div class="text-8xl">📈</div>`, options: ["It goes up (costs more)", "It goes down", "It becomes free"], correctAnswer: "It goes up (costs more)", successMsg: "Perfect! That is supply and demand." },
+                    { instruction: "If you don't have enough money for a new bike, what is the best thing to do?", visualHTML: `<div class="text-8xl">💰</div>`, options: ["Save up more money", "Cry loudly", "Steal it"], correctAnswer: "Save up more money", successMsg: "Great! Saving up is the smart choice." },
+                    { instruction: "What little plastic thing do adults tap at the store to pay without coins?", visualHTML: `<div class="text-8xl">💳</div>`, options: ["A Bank Card", "A Library Card", "A Playing Card"], correctAnswer: "A Bank Card", successMsg: "Ka pai! Cards hold electronic money." },
+                    { instruction: "Is it important to make a plan before you spend your money?", visualHTML: `<div class="text-8xl">📝</div>`, options: ["Yes, that is called budgeting", "No, just spend it all", "Maybe"], correctAnswer: "Yes, that is called budgeting", successMsg: "Yes! A budget is a smart money plan." }
+                ]
+            },
+            {
+                id: 36, title: "36. The Shop Team", icon: "🏪", subject: "Running a Business", bgGradient: "bg-gradient-to-b from-rose-200 via-pink-200 to-fuchsia-200", characterId: "svg-pukeko",
+                questions: [
+                    { instruction: "Who is the helpful person in the uniform that helps you find things in a store?", visualHTML: `<div class="text-8xl">🙋</div>`, options: ["The Shop Assistant", "A Customer", "A Police Officer"], correctAnswer: "The Shop Assistant", successMsg: "Great job! Assistants are there to help." },
+                    { instruction: "Who is the boss person in charge of making sure the whole store runs perfectly?", visualHTML: `<div class="text-8xl">👔</div>`, options: ["The Manager", "The Cleaner", "The Baker"], correctAnswer: "The Manager", successMsg: "Ka pai! The manager leads the team." },
+                    { instruction: "What do we call the people who come into the store to buy things?", visualHTML: `<div class="text-8xl">🛒</div>`, options: ["Customers", "Workers", "Animals"], correctAnswer: "Customers", successMsg: "Yes! Customers are very important." },
+                    { instruction: "If the store runs out of shiny red apples, what must the manager do?", visualHTML: `<div class="text-8xl">🍎</div>`, options: ["Order more apples", "Close the store", "Cry"], correctAnswer: "Order more apples", successMsg: "Awesome! Restocking keeps shelves full." },
+                    { instruction: "Where does the shopkeeper keep the money safe while you are paying?", visualHTML: `<div class="text-8xl">📠</div>`, options: ["The Cash Register / Till", "The Fridge", "The Oven"], correctAnswer: "The Cash Register / Till", successMsg: "Perfect! The register counts the cash." },
+                    { instruction: "What does the busy cleaner do for the store?", visualHTML: `<div class="text-8xl">🧹</div>`, options: ["Keeps it nice and tidy", "Eats all the food", "Breaks the windows"], correctAnswer: "Keeps it nice and tidy", successMsg: "Great! A clean store is a happy store." },
+                    { instruction: "What is placed outside to tell people the name of the store?", visualHTML: `<div class="text-8xl">🪧</div>`, options: ["A Sign", "A Cloud", "A Bird"], correctAnswer: "A Sign", successMsg: "Ka pai! Signs welcome us inside." },
+                    { instruction: "Why does a team of workers have to work together in a business?", visualHTML: `<div class="text-8xl">🤝</div>`, options: ["To do a good job together", "To have fights", "To sleep all day"], correctAnswer: "To do a good job together", successMsg: "Yes! Teamwork makes the dream work." }
+                ]
+            },
+            {
+                id: 37, title: "37. The Salad Bowl", icon: "🥗", subject: "Healthy Food", bgGradient: "bg-gradient-to-b from-lime-200 via-green-200 to-emerald-300", characterId: "svg-kereru",
+                questions: [
+                    { instruction: "Which of these foods is great for a healthy, crunchy lunch?", visualHTML: `<div class="text-8xl">🍏</div>`, options: ["An Apple", "A Donut", "A Lolly"], correctAnswer: "An Apple", successMsg: "Great job! Apples have good vitamins." },
+                    { instruction: "What kind of food gives your body the best energy to run and play all day?", visualHTML: `<div class="text-8xl">🏃</div>`, options: ["Healthy fresh food", "Just candy", "Only bread"], correctAnswer: "Healthy fresh food", successMsg: "Ka pai! Fresh food is fuel." },
+                    { instruction: "Is it healthy to eat chocolate for breakfast, lunch, and dinner?", visualHTML: `<div class="text-8xl">🍫</div>`, options: ["No, just as a sometimes treat", "Yes, all the time", "Always"], correctAnswer: "No, just as a sometimes treat", successMsg: "Yes! Treats are just for sometimes." },
+                    { instruction: "When eating fruits and vegetables, what is very good for your body?", visualHTML: `<div class="text-8xl">🌈</div>`, options: ["Eating a rainbow of colors", "Only eating white food", "Only eating green"], correctAnswer: "Eating a rainbow of colors", successMsg: "Awesome! Different colors have different vitamins." },
+                    { instruction: "What happens to your body if you eat too much candy at once?", visualHTML: `<div class="text-8xl">🤢</div>`, options: ["You get a tummy ache", "You get super strong", "You can fly"], correctAnswer: "You get a tummy ache", successMsg: "Perfect! Too much sugar hurts our tummy." },
+                    { instruction: "What crunchy orange vegetable is famous for helping your eyes stay healthy?", visualHTML: `<div class="text-8xl">🥕</div>`, options: ["A Carrot", "A Potato", "A Tomato"], correctAnswer: "A Carrot", successMsg: "Great! Carrots are packed with Vitamin A." },
+                    { instruction: "What pure, clear drink is the absolute best choice when you are very thirsty?", visualHTML: `<div class="text-8xl">💧</div>`, options: ["Water", "Fizzy Soda", "Hot Chocolate"], correctAnswer: "Water", successMsg: "Ka pai! Water is exactly what your body needs." },
+                    { instruction: "What white drink gives your body calcium to make your bones super strong?", visualHTML: `<div class="text-8xl">🥛</div>`, options: ["Milk", "Apple Juice", "Lemonade"], correctAnswer: "Milk", successMsg: "Yes! Calcium builds strong bones." }
+                ]
+            },
+            {
+                id: 38, title: "38. The Safety Hub", icon: "🚨", subject: "Staying Safe", bgGradient: "bg-gradient-to-b from-red-200 via-rose-300 to-red-400", characterId: "svg-ruru",
+                questions: [
+                    { instruction: "If there is a fire in a building, what is the safest thing to do?", visualHTML: `<div class="text-8xl">🔥</div>`, options: ["Get outside quickly and safely", "Hide under the bed", "Try to fight it"], correctAnswer: "Get outside quickly and safely", successMsg: "Great job! Always get out and stay out." },
+                    { instruction: "What special number do you call on the phone for a big emergency?", visualHTML: `<div class="text-8xl">☎️</div>`, options: ["111 (or 911)", "123", "0000"], correctAnswer: "111 (or 911)", successMsg: "Ka pai! That calls for help." },
+                    { instruction: "If the ground shakes in an earthquake, what three things should you do?", visualHTML: `<div class="text-8xl">🫨</div>`, options: ["Drop, Cover, and Hold", "Run, Jump, and Shout", "Stand perfectly still"], correctAnswer: "Drop, Cover, and Hold", successMsg: "Yes! Protect your head and hold on tight." },
+                    { instruction: "Who drives a fast car with bright flashing sirens to keep the town safe?", visualHTML: `<div class="text-8xl">🚓</div>`, options: ["The Police", "The Postman", "The Baker"], correctAnswer: "The Police", successMsg: "Awesome! Police officers protect us." },
+                    { instruction: "Who comes rushing in an ambulance to help sick or hurt people?", visualHTML: `<div class="text-8xl">🚑</div>`, options: ["Paramedics", "Clowns", "Teachers"], correctAnswer: "Paramedics", successMsg: "Perfect! Paramedics are medical heroes." },
+                    { instruction: "What loud ringing sound on the ceiling tells us to quickly leave a building?", visualHTML: `<div class="text-8xl">🔔</div>`, options: ["A Fire Alarm", "A School Bell", "A Telephone"], correctAnswer: "A Fire Alarm", successMsg: "Great! When it beeps, we walk out safely." },
+                    { instruction: "When you are crossing the road, what must you do first?", visualHTML: `<div class="text-8xl">👀</div>`, options: ["Look both ways and listen", "Close your eyes", "Run as fast as you can"], correctAnswer: "Look both ways and listen", successMsg: "Ka pai! Always look and listen for cars." },
+                    { instruction: "Should you ever, ever play with matches, lighters, or fire?", visualHTML: `<div class="text-8xl">🚫</div>`, options: ["No, never!", "Yes, sometimes", "Only on Tuesdays"], correctAnswer: "No, never!", successMsg: "Yes! Fire is a tool for adults, not a toy." }
+                ]
+            }
+        ];
+
+        function sanitizeForSpeech(text) {
+            let safeText = text;
+            const dictionary = {"Kia ora": "Hello", "Pīwakawaka": "Fantail bird", "Kekeno": "New Zealand fur seal", "Ka pai": "Good job", "Tino Pai Rawa Atu": "Excellent", "Tino pai": "Very good", "Ka mau te wehi": "Awesome", "Aotearoa": "New Zealand"};
+            for (const [maori, english] of Object.entries(dictionary)) {
+                safeText = safeText.replace(new RegExp(maori, "gi"), english);
+            }
+            return safeText;
+        }
+
+        function speak(text, includeOptions = false) {
+            window.speechSynthesis.cancel();
+            let fullText = sanitizeForSpeech(text);
+            if (includeOptions && GameState.currentLevelObj) {
+                const q = GameState.currentLevelObj.questions[GameState.currentQuestionIndex];
+                fullText += ". The choices are: ";
+                q.options.forEach((opt, index) => fullText += sanitizeForSpeech(opt) + (index === q.options.length - 1 ? "." : ", or, "));
+            }
+            const utterance = new SpeechSynthesisUtterance(fullText);
+            if (femaleVoice) utterance.voice = femaleVoice;
+            utterance.rate = 0.9; utterance.pitch = 1.2;
+            
+            const instructionBox = document.getElementById('instruction-box');
+            if (instructionBox && GameState.currentScreen === 'level') {
+                utterance.onstart = () => instructionBox.classList.add('tts-active');
+                utterance.onend = () => instructionBox.classList.remove('tts-active');
+                utterance.onerror = () => instructionBox.classList.remove('tts-active');
+            }
+            
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function burstStars(x, y) {
+            const symbols = ['⭐', '✨', '🎉', '🌟', '🎊'];
+            for (let i = 0; i < 20; i++) {
+                let particle = document.createElement('div');
+                particle.innerText = symbols[Math.floor(Math.random() * symbols.length)];
+                particle.className = 'particle text-3xl z-50';
+                particle.style.left = x + 'px';
+                particle.style.top = y + 'px';
+                
+                const angle = Math.random() * Math.PI * 2;
+                const velocity = 80 + Math.random() * 120;
+                particle.style.setProperty('--tx', `calc(-50% + ${Math.cos(angle) * velocity}px)`);
+                particle.style.setProperty('--ty', `calc(-50% + ${Math.sin(angle) * velocity}px)`);
+                particle.style.setProperty('--rot', `${Math.random() * 360}deg`);
+                
+                document.body.appendChild(particle);
+                setTimeout(() => particle.remove(), 800);
+            }
+        }
+
+        function renderHub() {
+            const container = document.getElementById('map-nodes');
+            container.innerHTML = '';
+            levelsData.forEach((level) => {
+                const isLocked = level.id > GameState.unlockedLevel;
+                const btn = document.createElement('button');
+                btn.className = `game-btn p-6 rounded-3xl border-4 border-white text-left flex items-center gap-4 ${isLocked ? 'bg-gray-300 level-locked' : 'bg-white hover:bg-gray-50'}`;
+                btn.innerHTML = `<div class="text-5xl">${isLocked ? '🔒' : level.icon}</div><div><div class="font-black text-xl text-gray-800">${level.title}</div><div class="text-sm font-bold ${isLocked ? 'text-gray-500' : 'text-blue-500'}">${isLocked ? 'Locked' : level.subject}</div></div>`;
+                if (!isLocked) btn.onclick = () => loadLevel(level);
+                container.appendChild(btn);
+            });
+        }
+
+        function loadLevel(level, isNextQuestion = false) {
+            GameState.currentLevelObj = level;
+            GameState.currentScreen = 'level';
+            
+            if (!isNextQuestion) {
+                GameState.currentQuestionIndex = 0;
+                document.getElementById('screen-hub').classList.replace('slide-in-right', 'slide-out-left');
+                document.getElementById('screen-level').className = `screen-container slide-in-right absolute inset-0 flex flex-col z-10 ${level.bgGradient}`;
+                
+                const bgContainer = document.getElementById('level-bg-elements');
+                bgContainer.innerHTML = ''; 
+                
+                const bgSymbols = {
+                    1: ['🫧', '🐚', '☀️'], 2: ['🍃', '🦋', '🌿'], 3: ['🌾', '🌼', '☁️'], 4: ['❄️', '☁️', '🧊'], 
+                    5: ['💧', '🐟', '💦'], 6: ['🏢', '🚗', '🕊️'], 7: ['🛖', '🪵', '🍂'], 8: ['🪙', '🍎', '🛍️'], 
+                    9: ['⚙️', '🔩', '💡'], 10: ['📊', '📋', '📎'], 11: ['🌋', '🪨', '🍂'], 12: ['⭐', '🌙', '🚀'], 
+                    13: ['📈', '📉', '📊'], 14: ['🧮', '💻', '🔍'], 15: ['🔌', '🔋', '⚡'], 16: ['⚙️', '🦾', '🤖'], 
+                    17: ['🤝', '⚖️', '🏛️'], 18: ['🗳️', '📜', '🤝'], 19: ['💭', '🤔', '✨'], 20: ['📺', '📻', '📱'], 
+                    21: ['📰', '📸', '🎤'], 22: ['📡', '✉️', '📞'], 23: ['🎧', '🎵', '🎹'],
+                    24: ['🚜', '🌾', '🌽'], 25: ['🌻', '🪴', '🐝'], 26: ['🍎', '💧', '🧼'], 27: ['💖', '🧘', '🌟'],
+                    28: ['🍇', '🍃', '☀️'], 29: ['🌍', '♻️', '🌳'], 30: ['🐸', '🌲', '🦋'], 31: ['💧', '🌊', '🐟'], 
+                    32: ['🍞', '🌾', '👨‍🍳'], 33: ['🚚', '🏪', '💵'], 34: ['🚢', '✈️', '📦'], 35: ['🏦', '💳', '💰'], 
+                    36: ['🛒', '👔', '🧾'], 37: ['🥗', '🍎', '🌈'], 38: ['🚨', '🚑', '🔥']
+                };
+                const levelSymbols = bgSymbols[level.id] || ['✨'];
+                for(let i=0; i<12; i++) {
+                    const el = document.createElement('div');
+                    el.innerText = levelSymbols[Math.floor(Math.random() * levelSymbols.length)];
+                    el.className = 'parallax-item text-4xl sm:text-6xl drop-shadow-md';
+                    el.style.left = `${Math.random() * 100}vw`;
+                    el.style.animationDuration = `${10 + Math.random() * 15}s`;
+                    el.style.animationDelay = `-${Math.random() * 20}s`;
+                    bgContainer.appendChild(el);
+                }
+            }
+            
+            const currentQ = level.questions[GameState.currentQuestionIndex];
+            const totalQ = level.questions.length;
+            
+            const progressContainer = document.getElementById('level-progress');
+            progressContainer.innerHTML = '';
+            for (let i = 0; i < totalQ; i++) {
+                const star = document.createElement('span');
+                star.innerText = '⭐';
+                star.className = `text-lg sm:text-xl drop-shadow-sm ${i <= GameState.currentQuestionIndex ? 'star-filled' : 'star-empty'}`;
+                progressContainer.appendChild(star);
+            }
+            
+            document.getElementById('level-instruction').innerText = currentQ.instruction;
+            document.getElementById('level-visual').innerHTML = currentQ.visualHTML;
+            
+            const charEl = document.getElementById('level-character');
+            charEl.innerHTML = document.getElementById(level.characterId).innerHTML;
+            charEl.className = 'animate-float mb-4';
+
+            const optionsContainer = document.getElementById('level-options');
+            optionsContainer.innerHTML = '';
+            currentQ.options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = "game-btn bg-white hover:bg-gray-100 text-gray-800 font-black text-2xl sm:text-3xl py-4 px-8 rounded-2xl border-4 border-gray-200 min-w-[120px]";
+                btn.innerText = opt;
+                btn.onclick = () => checkAnswer(opt, level, btn);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(selected, level, btnElement) {
+            const currentQ = level.questions[GameState.currentQuestionIndex];
+            const allBtns = document.getElementById('level-options').querySelectorAll('button');
+            
+            if (selected === currentQ.correctAnswer) {
+                SoundManager.playSuccess();
+                allBtns.forEach(b => b.disabled = true);
+                btnElement.classList.replace('bg-white', 'bg-green-300');
+                btnElement.classList.replace('border-gray-200', 'border-green-600');
+                btnElement.classList.add('text-green-900', 'scale-110');
+                
+                const rect = btnElement.getBoundingClientRect();
+                burstStars(rect.left + rect.width / 2, rect.top + rect.height / 2);
+
+                const charEl = document.getElementById('level-character');
+                charEl.classList.replace('animate-float', 'animate-bounce-fast');
+
+                speak(currentQ.successMsg);
+
+                const isLastQuestion = GameState.currentQuestionIndex === level.questions.length - 1;
+                
+                if (!isLastQuestion) {
+                    setTimeout(() => {
+                        const loader = document.getElementById('loading-overlay');
+                        loader.classList.remove('hidden');
+                        loader.classList.add('pointer-events-auto');
+                        setTimeout(() => loader.classList.remove('opacity-0'), 10);
+                        
+                        setTimeout(() => {
+                            GameState.currentQuestionIndex++;
+                            loadLevel(level, true);
+                            
+                            loader.classList.add('opacity-0');
+                            loader.classList.remove('pointer-events-auto');
+                            setTimeout(() => loader.classList.add('hidden'), 300);
+                        }, 800);
+                    }, 1200);
+                } else {
+                    setTimeout(() => {
+                        if (level.id === levelsData.length) {
+                            const modal = document.getElementById('modal-finale');
+                            const box = document.getElementById('finale-box');
+                            modal.classList.remove('hidden'); setTimeout(() => box.classList.remove('scale-90'), 50);
+                            speak("Tino Pai Rawa Atu! You completed the great Aotearoa journey!");
+                        } else {
+                            document.getElementById('success-msg').innerText = currentQ.successMsg;
+                            const modal = document.getElementById('modal-success');
+                            const box = document.getElementById('success-box');
+                            modal.classList.remove('hidden'); setTimeout(() => box.classList.remove('scale-90'), 50);
+                            if (GameState.unlockedLevel === level.id && GameState.unlockedLevel < levelsData.length) GameState.unlockedLevel++;
+                        }
+                    }, 1000);
+                }
+            } else {
+                SoundManager.playError();
+                btnElement.classList.replace('bg-white', 'bg-red-200');
+                setTimeout(() => btnElement.classList.replace('bg-red-200', 'bg-white'), 500);
+                speak("Not quite! Let's try again. " + currentQ.instruction);
+                
+                const charEl = document.getElementById('level-character');
+                charEl.classList.remove('animate-float');
+                charEl.classList.add('error-shake');
+                setTimeout(() => { charEl.classList.remove('error-shake'); charEl.classList.add('animate-float'); }, 500);
+            }
+        }
+
+        window.onload = () => {
+            document.getElementById('btn-back')?.addEventListener('click', () => {
+                GameState.currentScreen = 'hub'; GameState.currentLevelObj = null;
+                document.getElementById('screen-level').classList.replace('slide-in-right', 'slide-out-right');
+                document.getElementById('screen-hub').classList.replace('slide-out-left', 'slide-in-right');
+                window.speechSynthesis.cancel(); renderHub();
+            });
+            
+            document.getElementById('btn-next')?.addEventListener('click', () => {
+                const modal = document.getElementById('modal-success'); const box = document.getElementById('success-box');
+                box.classList.add('scale-90'); setTimeout(() => modal.classList.add('hidden'), 200);
+                document.getElementById('btn-back').click();
+            });
+            
+            document.getElementById('btn-restart')?.addEventListener('click', () => {
+                const modal = document.getElementById('modal-finale'); const box = document.getElementById('finale-box');
+                box.classList.add('scale-90'); setTimeout(() => modal.classList.add('hidden'), 200);
+                GameState.unlockedLevel = 1; document.getElementById('btn-back').click();
+            });
+            
+            document.getElementById('btn-speech')?.addEventListener('click', () => {
+                if (GameState.currentScreen === 'hub') speak(document.getElementById('hub-instruction').innerText);
+                else if (GameState.currentScreen === 'level' && GameState.currentLevelObj) speak(GameState.currentLevelObj.questions[GameState.currentQuestionIndex].instruction, true);
+            });
+            
+            document.getElementById('btn-music')?.addEventListener('click', () => SoundManager.toggleMusic());
+            
+            document.body.addEventListener('click', (e) => {
+                if (e.target.closest('.game-btn') && e.target.id !== 'btn-music') {
+                    SoundManager.playClick();
+                }
+            });
+            
+            renderHub();
+        };
+    </script>
+</body>
+</html>
